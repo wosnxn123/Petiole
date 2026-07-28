@@ -261,7 +261,7 @@ public final class StorageHookAdapter implements AutoCloseable {
             case DIMENSION -> EnumSet.of(StorageNamespace.CHUNKS, StorageNamespace.POI,
                 StorageNamespace.ENTITIES, StorageNamespace.SAVED_DATA);
             case GLOBAL -> EnumSet.of(StorageNamespace.PLAYERS, StorageNamespace.ADVANCEMENTS,
-                StorageNamespace.STATISTICS, StorageNamespace.SAVED_DATA);
+                StorageNamespace.STATISTICS, StorageNamespace.WORLD_DATA, StorageNamespace.SAVED_DATA);
         };
     }
 }

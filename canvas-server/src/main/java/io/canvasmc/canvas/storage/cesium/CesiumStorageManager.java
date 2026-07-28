@@ -3,21 +3,17 @@ package io.canvasmc.canvas.storage.cesium;
 import io.canvasmc.canvas.GlobalConfiguration;
 import io.cesiumfolia.folia.BackpressureMetrics;
 import io.cesiumfolia.folia.CommitPumpConfig;
+import io.cesiumfolia.folia.FoliaStorageRuntime;
 import io.cesiumfolia.folia.StorageHookAdapter;
 import io.cesiumfolia.storage.BinaryKey;
 import io.cesiumfolia.storage.StorageKeyCodecs;
 import io.cesiumfolia.storage.StorageManifest;
 import io.cesiumfolia.storage.StorageNamespace;
 import io.cesiumfolia.storage.lmdb.LmdbStorageBackend;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -33,57 +29,34 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Process-wide owner of Canvas's two Cesium durability scopes. */
+/** Process-wide Canvas adapter for the reusable Cesium-Folia storage runtime. */
 public final class CesiumStorageManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("CesiumStorage");
-    private static final String MANIFEST_FILE = "manifest.properties";
-    private static final String GLOBAL_SCHEMA = "canvas-global-v2";
-    private static final String DIMENSIONS_SCHEMA = "canvas-dimensions-v1";
     private static final CesiumStorageManager DISABLED = new CesiumStorageManager();
     private static volatile CesiumStorageManager current = DISABLED;
 
     private final boolean enabled;
-    private final @Nullable Path root;
     private final @Nullable Settings settings;
-    private final @Nullable LmdbStorageBackend globalBackend;
-    private final @Nullable LmdbStorageBackend dimensionsBackend;
-    private final @Nullable StorageHookAdapter global;
-    private final @Nullable StorageHookAdapter dimensions;
+    private final @Nullable FoliaStorageRuntime runtime;
     private final AtomicReference<Throwable> terminalFailure = new AtomicReference<>();
     private final AtomicBoolean closing = new AtomicBoolean();
 
     private CesiumStorageManager() {
         this.enabled = false;
-        this.root = null;
         this.settings = null;
-        this.globalBackend = null;
-        this.dimensionsBackend = null;
-        this.global = null;
-        this.dimensions = null;
+        this.runtime = null;
     }
 
     private CesiumStorageManager(final Settings settings) {
         this.enabled = false;
-        this.root = null;
         this.settings = settings;
-        this.globalBackend = null;
-        this.dimensionsBackend = null;
-        this.global = null;
-        this.dimensions = null;
+        this.runtime = null;
     }
 
-    private CesiumStorageManager(final Path root, final Settings settings,
-                                 final LmdbStorageBackend globalBackend,
-                                 final LmdbStorageBackend dimensionsBackend,
-                                 final StorageHookAdapter global,
-                                 final StorageHookAdapter dimensions) {
+    private CesiumStorageManager(final Settings settings, final FoliaStorageRuntime runtime) {
         this.enabled = true;
-        this.root = root;
         this.settings = settings;
-        this.globalBackend = globalBackend;
-        this.dimensionsBackend = dimensionsBackend;
-        this.global = global;
-        this.dimensions = dimensions;
+        this.runtime = runtime;
     }
 
     public static CesiumStorageManager current() {
@@ -105,20 +78,10 @@ public final class CesiumStorageManager {
 
         final Path root = resolveStorageRoot(worldRoot, settings.rootDirectory());
         if (current.enabled) {
-            if (root.equals(current.root) && settings.equals(current.settings)) return current;
-            throw new IllegalStateException("Cesium storage is already open for " + current.root);
-        }
-        final Path globalRoot = root.resolve("global");
-        final Path dimensionsRoot = root.resolve("dimensions");
-        final boolean hasGlobalManifest = Files.isRegularFile(globalRoot.resolve(MANIFEST_FILE));
-        final boolean hasDimensionsManifest = Files.isRegularFile(dimensionsRoot.resolve(MANIFEST_FILE));
-        if (hasGlobalManifest != hasDimensionsManifest) {
-            throw new IllegalStateException("Cesium storage must prepare global and dimensions manifests together");
+            if (root.equals(current.runtime().root()) && settings.equals(current.settings)) return current;
+            throw new IllegalStateException("Cesium storage is already open for " + current.runtime().root());
         }
         final int dataVersion = SharedConstants.getCurrentVersion().dataVersion().version();
-        preflight(globalRoot, GLOBAL_SCHEMA, dataVersion, existingWorld);
-        preflight(dimensionsRoot, DIMENSIONS_SCHEMA, dataVersion, existingWorld);
-
         final LmdbStorageBackend.Options backendOptions = new LmdbStorageBackend.Options(
             settings.initialMapSizeBytes(), settings.maximumMapSizeBytes(), settings.maximumReaders(),
             settings.maximumValueBytes(), settings.compressionLevel(), settings.closeTimeout(),
@@ -127,34 +90,16 @@ public final class CesiumStorageManager {
             settings.maxBatchOperations(), settings.backpressureOperationThreshold(),
             settings.backpressureByteThreshold(), settings.initialRetryDelay(),
             settings.maximumRetryDelay(), settings.closeTimeout());
-        final Instant createdAt = Instant.now();
-        final LmdbStorageBackend.UncleanOpenPolicy uncleanPolicy = settings.allowUncleanRecovery()
-            ? LmdbStorageBackend.UncleanOpenPolicy.RECOVER : LmdbStorageBackend.UncleanOpenPolicy.REJECT;
 
-        LmdbStorageBackend openedGlobalBackend = null;
-        LmdbStorageBackend openedDimensionsBackend = null;
-        StorageHookAdapter openedGlobal = null;
-        StorageHookAdapter openedDimensions = null;
         try {
-            openedGlobalBackend = LmdbStorageBackend.open(globalRoot,
-                manifest(GLOBAL_SCHEMA, dataVersion, createdAt), backendOptions,
-                LmdbStorageBackend.OpenMode.READ_WRITE, uncleanPolicy);
-            openedGlobal = new StorageHookAdapter(openedGlobalBackend, StorageHookAdapter.Scope.GLOBAL,
-                "canvas-global", pumpConfig);
-            openedDimensionsBackend = LmdbStorageBackend.open(dimensionsRoot,
-                manifest(DIMENSIONS_SCHEMA, dataVersion, createdAt), backendOptions,
-                LmdbStorageBackend.OpenMode.READ_WRITE, uncleanPolicy);
-            openedDimensions = new StorageHookAdapter(openedDimensionsBackend,
-                StorageHookAdapter.Scope.DIMENSION, "canvas-dimensions", pumpConfig);
-            current = new CesiumStorageManager(root, settings, openedGlobalBackend,
-                openedDimensionsBackend, openedGlobal, openedDimensions);
-            LOGGER.info("Cesium storage enabled: backend={}, path={}, schemas=[{}, {}], map={}..{} bytes, readers={}, maxValue={} bytes",
-                settings.backend(), root, GLOBAL_SCHEMA, DIMENSIONS_SCHEMA, settings.initialMapSizeBytes(),
-                settings.maximumMapSizeBytes(), settings.maximumReaders(), settings.maximumValueBytes());
+            final FoliaStorageRuntime runtime = FoliaStorageRuntime.open(root, dataVersion, existingWorld,
+                backendOptions, pumpConfig, settings.allowUncleanRecovery());
+            current = new CesiumStorageManager(settings, runtime);
+            LOGGER.info("Cesium storage enabled: backend={}, path={}, map={}..{} bytes, readers={}, maxValue={} bytes",
+                settings.backend(), runtime.root(), settings.initialMapSizeBytes(), settings.maximumMapSizeBytes(),
+                settings.maximumReaders(), settings.maximumValueBytes());
             return current;
         } catch (final Throwable failure) {
-            abortOpened(openedDimensions, openedDimensionsBackend, failure);
-            abortOpened(openedGlobal, openedGlobalBackend, failure);
             current = DISABLED;
             throw propagate(failure);
         }
@@ -232,16 +177,15 @@ public final class CesiumStorageManager {
         return stage;
     }
 
-    /** Clean close drains and marks both manifests clean. Abnormal close aborts without doing so. */
+    /** Clean close drains both runtime scopes; abnormal close aborts both. */
     public void flushAndClose(final boolean clean) {
         if (!enabled || !closing.compareAndSet(false, true)) return;
         final boolean cleanClose = clean && terminalFailure.get() == null;
         Throwable failure = null;
         try {
-            failure = await(cleanClose ? dimensions().closeAsync() : dimensions().abortAsync(),
-                cleanClose ? "dimensions close" : "dimensions abort", failure);
-            failure = await(cleanClose ? global().closeAsync() : global().abortAsync(),
-                cleanClose ? "global close" : "global abort", failure);
+            runtime().close(cleanClose);
+        } catch (final Throwable thrown) {
+            failure = unwrap(thrown);
         } finally {
             logMetrics("dimensions", dimensions().metrics());
             logMetrics("global", global().metrics());
@@ -251,7 +195,7 @@ public final class CesiumStorageManager {
             terminalFailure("shutdown", failure);
             throw propagate(failure);
         }
-        LOGGER.info("Cesium storage {} at {}", cleanClose ? "closed cleanly" : "aborted uncleanly", root);
+        LOGGER.info("Cesium storage {} at {}", cleanClose ? "closed cleanly" : "aborted uncleanly", runtime().root());
     }
 
     public void configurationReloaded(final GlobalConfiguration.CesiumStorage configuration) {
@@ -268,7 +212,8 @@ public final class CesiumStorageManager {
         if (!enabled) return Status.disabled(settings == null ? "unconfigured" : settings.backend());
         final Throwable failure = terminalFailure.get();
         final String state = closing.get() ? "closing" : failure == null ? "healthy" : "failed";
-        return new Status(true, settings().backend(), root, state, failure == null ? null : failure.toString(),
+        return new Status(true, settings().backend(), runtime().root(), state,
+            failure == null ? null : failure.toString(),
             scopeStatus(globalBackend(), global().metrics()),
             scopeStatus(dimensionsBackend(), dimensions().metrics()));
     }
@@ -319,20 +264,24 @@ public final class CesiumStorageManager {
         if (closing.get()) throw new IllegalStateException("Cesium storage is closing");
     }
 
+    private FoliaStorageRuntime runtime() {
+        return Objects.requireNonNull(runtime, "storage runtime");
+    }
+
     private StorageHookAdapter global() {
-        return Objects.requireNonNull(global, "global adapter");
+        return runtime().global();
     }
 
     private StorageHookAdapter dimensions() {
-        return Objects.requireNonNull(dimensions, "dimensions adapter");
+        return runtime().dimensions();
     }
 
     private LmdbStorageBackend globalBackend() {
-        return Objects.requireNonNull(globalBackend, "global backend");
+        return runtime().globalBackend();
     }
 
     private LmdbStorageBackend dimensionsBackend() {
-        return Objects.requireNonNull(dimensionsBackend, "dimensions backend");
+        return runtime().dimensionsBackend();
     }
 
     private Settings settings() {
@@ -357,71 +306,6 @@ public final class CesiumStorageManager {
         return resolved;
     }
 
-    private static StorageManifest manifest(final String schema, final int dataVersion, final Instant createdAt) {
-        return new StorageManifest(LmdbStorageBackend.FORMAT_ID, LmdbStorageBackend.FORMAT_VERSION,
-            dataVersion, "zstd", schema, 0L, true, createdAt);
-    }
-
-    private static void preflight(final Path scopeRoot, final String schema, final int dataVersion,
-                                  final boolean existingWorld) {
-        final Path manifest = scopeRoot.resolve(MANIFEST_FILE);
-        final boolean hasManifest = Files.isRegularFile(manifest);
-        final boolean hasData = Files.isRegularFile(scopeRoot.resolve("data.mdb"));
-        if (existingWorld && (!hasManifest || !hasData)) {
-            throw new IllegalStateException("Existing world lacks prepared Cesium " + schema + " storage at " + scopeRoot);
-        }
-        if (!hasManifest) {
-            if (hasData || Files.exists(scopeRoot.resolve("lock.mdb")))
-                throw new IllegalStateException("Cesium LMDB exists without manifest at " + scopeRoot);
-            return;
-        }
-        if (!hasData) throw new IllegalStateException("Cesium manifest exists without data.mdb at " + scopeRoot);
-
-        final Properties properties = new Properties();
-        try (InputStream input = Files.newInputStream(manifest)) {
-            properties.load(input);
-        } catch (final IOException failure) {
-            throw new IllegalStateException("Cannot read Cesium manifest " + manifest, failure);
-        }
-        requireProperty(properties, "format.id", LmdbStorageBackend.FORMAT_ID, manifest);
-        requireProperty(properties, "format.version", Integer.toString(LmdbStorageBackend.FORMAT_VERSION), manifest);
-        requireProperty(properties, "minecraft.data-version", Integer.toString(dataVersion), manifest);
-        requireProperty(properties, "compression", "zstd", manifest);
-        requireProperty(properties, "schema.id", schema, manifest);
-    }
-
-    private static void requireProperty(final Properties properties, final String key,
-                                        final String expected, final Path manifest) {
-        final String actual = properties.getProperty(key);
-        if (!expected.equals(actual))
-            throw new IllegalStateException("Cesium manifest " + manifest + " has " + key + '=' + actual
-                + ", expected " + expected);
-    }
-
-    private static void abortOpened(final @Nullable StorageHookAdapter adapter,
-                                    final @Nullable LmdbStorageBackend backend,
-                                    final Throwable openingFailure) {
-        try {
-            if (adapter != null) adapter.abortAsync(openingFailure).toCompletableFuture().join();
-            else if (backend != null) backend.abortAsync(openingFailure).toCompletableFuture().join();
-        } catch (final Throwable abortFailure) {
-            openingFailure.addSuppressed(unwrap(abortFailure));
-        }
-    }
-
-    private static @Nullable Throwable await(final CompletionStage<Void> stage, final String scope,
-                                             final @Nullable Throwable previous) {
-        try {
-            stage.toCompletableFuture().join();
-            return previous;
-        } catch (final Throwable thrown) {
-            final Throwable failure = unwrap(thrown);
-            LOGGER.error("Cesium {} failed", scope, failure);
-            if (previous == null) return failure;
-            previous.addSuppressed(failure);
-            return previous;
-        }
-    }
 
     private static Throwable unwrap(final Throwable thrown) {
         return (thrown instanceof CompletionException || thrown instanceof ExecutionException)
