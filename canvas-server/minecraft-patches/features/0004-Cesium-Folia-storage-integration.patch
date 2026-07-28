@@ -1,0 +1,817 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Snowflake <wosnxn123@users.noreply.github.com>
+Date: Tue, 28 Jul 2026 22:30:00 +0800
+Subject: [PATCH] Integrate Cesium-Folia storage backend
+
+Routes chunk regions, player data, advancements, statistics, and saved data
+through the opt-in Cesium storage manager. Keeps the vanilla filesystem path
+unchanged while disabled and closes the Cesium commit pump during shutdown.
+
+---
+diff --git a/net/minecraft/server/Main.java b/net/minecraft/server/Main.java
+--- a/net/minecraft/server/Main.java
++++ b/net/minecraft/server/Main.java
+@@ -198,6 +198,11 @@
+             String levelName = Optional.ofNullable((String) options.valueOf("world")).orElse(settings.getProperties().levelName); // CraftBukkit
+             LevelStorageSource levelStorageSource = LevelStorageSource.createDefault(universePath.toPath());
+             LevelStorageSource.LevelStorageAccess access = levelStorageSource.validateAndCreateAccess(levelName);
++            io.canvasmc.canvas.storage.cesium.CesiumStorageManager.open(
++                access.getLevelDirectory().path(),
++                Files.isRegularFile(access.getLevelDirectory().dataFile())
++                    || Files.isRegularFile(access.getLevelDirectory().oldDataFile())
++            );
+             Dynamic<?> levelDataTag;
+             if (access.hasWorldData()) {
+                 Dynamic<?> levelDataUnfixed;
+@@ -205,17 +210,20 @@
+                     levelDataUnfixed = access.getUnfixedDataTagWithFallback();
+                 } catch (IOException | NbtException | ReportedNbtException ex) {
+                     LOGGER.error("Failed to load world data. World files may be corrupted. Shutting down.", ex);
++                    closeBootstrapStorage();
+                     return;
+                 }
+ 
+                 LevelSummary summary = access.fixAndGetSummaryFromTag(levelDataUnfixed);
+                 if (summary.requiresManualConversion()) {
+                     LOGGER.info("This world must be opened in an older version (like 1.6.4) to be safely converted");
++                    closeBootstrapStorage();
+                     return;
+                 }
+ 
+                 if (!summary.isCompatible()) {
+                     LOGGER.info("This world was created by an incompatible version.");
++                    closeBootstrapStorage();
+                     return;
+                 }
+ 
+@@ -300,6 +308,7 @@
+                 LOGGER.warn(
+                     "Failed to load datapacks, can't proceed with server load. You can either fix your datapacks or reset to vanilla with --safeMode", e
+                 );
++                closeBootstrapStorage();
+                 return;
+             }
+ 
+@@ -370,6 +379,15 @@
+             */ // CraftBukkit end
+         } catch (Throwable t) {
+             LOGGER.error(LogUtils.FATAL_MARKER, "Failed to start the minecraft server", t);
++            closeBootstrapStorage();
++        }
++    }
++
++    private static void closeBootstrapStorage() {
++        try {
++            io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current().flushAndClose(true);
++        } catch (final RuntimeException failure) {
++            LOGGER.error("Failed to close Cesium storage after bootstrap failure", failure);
+         }
+     }
+ 
+diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -545,7 +545,7 @@
+             throw new IllegalStateException("Missing Overworld dimension data");
+         }
+ 
+-        this.savedDataStorage = new SavedDataStorage(storageSource.getLevelPath(LevelResource.ROOT).resolve(LevelResource.DATA.id()), fixerUpper, this.registries.compositeAccess()); // Paper - save in level storage
++        this.savedDataStorage = new SavedDataStorage(storageSource.getLevelPath(LevelResource.ROOT).resolve(LevelResource.DATA.id()), fixerUpper, this.registries.compositeAccess(), Level.OVERWORLD); // Paper - save in level storage
+         this.worldData = worldStem.worldDataAndGenSettings().data();
+         this.worldGenSettings = worldStem.worldDataAndGenSettings().genSettings();
+         // this.savedDataStorage.set(WorldGenSettings.TYPE, this.worldGenSettings); // Paper - save in level storage
+@@ -558,7 +558,6 @@
+         // Paper - per-level load listener - move LevelLoadListener to ServerLevel
+         this.storageSource = storageSource;
+         this.playerDataStorage = storageSource.createPlayerStorage();
+-        this.randomSequences = this.savedDataStorage.computeIfAbsent(RandomSequences.TYPE);
+         // Paper - per-level WeatherData
+         // Paper - per-level GameRules
+         this.fixerUpper = fixerUpper;
+@@ -574,10 +573,6 @@
+         this.notificationManager = notificationManager;
+         this.serverActivityMonitor = new ServerActivityMonitor(notificationManager, 30);
+         this.packetProcessor = null; // Folia - region threading
+-        this.clockManager = this.getDataStorage().computeIfAbsent(ServerClockManager.TYPE);
+-        this.clockManager.init(this);
+-        this.customBossEvents = this.savedDataStorage.computeIfAbsent(CustomBossEvents.TYPE);
+-        this.pearls = this.savedDataStorage.computeIfAbsent(io.canvasmc.canvas.threadedregions.entities.EnderPearls.TYPE); // Canvas - region threading
+         // Paper - per-level scheduledEvents
+         // CraftBukkit start
+         this.options = options;
+@@ -586,6 +581,22 @@
+         Runtime.getRuntime().addShutdownHook(new org.bukkit.craftbukkit.util.ServerShutdownThread(this));
+         // CraftBukkit end
+         this.paperConfigurations = services.paper().configurations(); // Paper - add paper configuration files
++    }
++
++    protected final void initializePersistentStorage(final boolean configureCesium) {
++        if (this.randomSequences != null) {
++            throw new IllegalStateException("Persistent storage is already initialized");
++        }
++        if (configureCesium) {
++            final Path worldRoot = this.storageSource.getLevelPath(LevelResource.ROOT);
++            final boolean existingWorld = Files.isRegularFile(this.storageSource.getLevelPath(LevelResource.LEVEL_DATA_FILE));
++            io.canvasmc.canvas.storage.cesium.CesiumStorageManager.open(worldRoot, existingWorld);
++        }
++        this.randomSequences = this.savedDataStorage.computeIfAbsent(RandomSequences.TYPE);
++        this.clockManager = this.savedDataStorage.computeIfAbsent(ServerClockManager.TYPE);
++        this.clockManager.init(this);
++        this.customBossEvents = this.savedDataStorage.computeIfAbsent(CustomBossEvents.TYPE);
++        this.pearls = this.savedDataStorage.computeIfAbsent(io.canvasmc.canvas.threadedregions.entities.EnderPearls.TYPE);
+     }
+ 
+     protected abstract boolean initServer() throws IOException;
+@@ -678,7 +689,7 @@
+     ) {
+         final WorldOptions worldOptions = worldDataAndGenSettings.genSettings().options();
+         final ResourceKey<Level> dimensionKey = loading.info().dimensionKey();
+-        final SavedDataStorage savedDataStorage = new SavedDataStorage(this.storageSource.getDimensionPath(dimensionKey).resolve(LevelResource.DATA.id()), this.getFixerUpper(), this.registryAccess());
++        final SavedDataStorage savedDataStorage = new SavedDataStorage(this.storageSource.getDimensionPath(dimensionKey).resolve(LevelResource.DATA.id()), this.getFixerUpper(), this.registryAccess(), dimensionKey);
+         savedDataStorage.set(WorldGenSettings.TYPE, new WorldGenSettings(worldDataAndGenSettings.genSettings().options(), worldDataAndGenSettings.genSettings().dimensions()));
+         long seed = worldOptions.seed();
+         long biomeZoomSeed = BiomeManager.obfuscateSeed(seed);
+@@ -1116,9 +1127,12 @@
+         this.savedDataStorage.close();
+         this.resources.close();
+ 
++        // Region tasks only guarantee that writes reached the Cesium commit pump. Drain the pump
++        // after every producer is stopped and before publishing clean manifests.
+         LOGGER.info("Waiting for all RegionFile I/O tasks to complete...");
+         ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.flush((MinecraftServer)(Object)this);
+         LOGGER.info("All RegionFile I/O tasks complete");
++        io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current().flushAndClose(!this.abnormalExit);
+ 
+         try {
+             this.storageSource.close();
+@@ -1144,6 +1158,11 @@
+         Util.shutdownExecutors();
+         this.onServerExit();
+         // Paper end - Improved watchdog support - move final shutdown items here
++    }
++
++    public void cesium$storageFailed() {
++        this.abnormalExit = true;
++        this.halt(false);
+     }
+ 
+     public String getLocalIp() {
+diff --git a/net/minecraft/server/dedicated/DedicatedServer.java b/net/minecraft/server/dedicated/DedicatedServer.java
+--- a/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -237,6 +237,7 @@
+         // Paper start - initialize global and world-defaults configuration
+         this.paperConfigurations.initializeGlobalConfiguration(this.registryAccess());
+         this.paperConfigurations.initializeWorldDefaultsConfiguration(this.registryAccess());
++        this.initializePersistentStorage(true);
+         // Canvas start - pre start server config hook
+         // we have this here as a per-file patch since we might add more here
+         io.canvasmc.canvas.GlobalConfiguration.PurpurContainers containers = io.canvasmc.canvas.GlobalConfiguration.getInstance().purpurContainers;
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -1384,7 +1384,7 @@
+     }
+     public ServerStatsCounter getPlayerStats(final GameProfile gameProfile) {
+             Path targetFile = this.locateStatsFile(gameProfile);
+-            return new ServerStatsCounter(this.server, targetFile);
++            return new ServerStatsCounter(this.server, targetFile, gameProfile.id());
+     }
+     // CraftBukkit end
+ 
+diff --git a/net/minecraft/server/PlayerAdvancements.java b/net/minecraft/server/PlayerAdvancements.java
+--- a/net/minecraft/server/PlayerAdvancements.java
++++ b/net/minecraft/server/PlayerAdvancements.java
+@@ -110,7 +110,18 @@
+     }
+ 
+     private void load(final ServerAdvancementManager manager) {
+-        if (Files.isRegularFile(this.playerSavePath)) {
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (cesium.enabled()) {
++            cesium.readAdvancement(this.player.getUUID()).ifPresent(serialized -> {
++                try {
++                    JsonElement json = StrictJsonParser.parse(new String(serialized, StandardCharsets.UTF_8));
++                    PlayerAdvancements.Data data = this.codec.parse(JsonOps.INSTANCE, json).getOrThrow(JsonParseException::new);
++                    this.applyFrom(manager, data);
++                } catch (final RuntimeException failure) {
++                    throw new IllegalStateException("Failed to decode Cesium advancements for " + this.player.getUUID(), failure);
++                }
++            });
++        } else if (Files.isRegularFile(this.playerSavePath)) {
+             try (Reader reader = Files.newBufferedReader(this.playerSavePath, StandardCharsets.UTF_8)) {
+                 JsonElement json = StrictJsonParser.parse(reader);
+                 PlayerAdvancements.Data data = this.codec.parse(JsonOps.INSTANCE, json).getOrThrow(JsonParseException::new);
+@@ -129,6 +140,11 @@
+     public void save() {
+         if (org.spigotmc.SpigotConfig.disableAdvancementSaving) return; // Spigot
+         JsonElement json = this.codec.encodeStart(JsonOps.INSTANCE, this.asData()).getOrThrow();
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (cesium.enabled()) {
++            cesium.writeAdvancement(this.player.getUUID(), GSON.toJson(json).getBytes(StandardCharsets.UTF_8));
++            return;
++        }
+ 
+         try {
+             FileUtil.createDirectoriesSafe(this.playerSavePath.getParent());
+@@ -166,6 +182,7 @@
+     }
+ 
+     public boolean award(final AdvancementHolder holder, final String criterion) {
++        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.player, "Cannot award advancement async"); // Canvas - region threading
+         boolean result = false;
+         AdvancementProgress progress = this.getOrStartProgress(holder);
+         boolean wasDone = progress.isDone();
+@@ -208,6 +225,7 @@
+     }
+ 
+     public boolean revoke(final AdvancementHolder advancement, final String criterion) {
++        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.player, "Cannot revoke advancement async"); // Canvas - region threading
+         boolean result = false;
+         AdvancementProgress progress = this.getOrStartProgress(advancement);
+         boolean wasDone = progress.isDone();
+diff --git a/net/minecraft/stats/ServerStatsCounter.java b/net/minecraft/stats/ServerStatsCounter.java
+--- a/net/minecraft/stats/ServerStatsCounter.java
++++ b/net/minecraft/stats/ServerStatsCounter.java
+@@ -23,6 +23,7 @@
+ import java.nio.file.Path;
+ import java.util.HashMap;
+ import java.util.Map;
++import java.util.UUID;
+ import java.util.Set;
+ import java.util.stream.Collectors;
+ import net.minecraft.SharedConstants;
+@@ -50,6 +51,7 @@
+             return stats;
+         }, map -> map.entrySet().stream().collect(Collectors.groupingBy(entry -> entry.getKey().getType(), Util.toMap())));
+     private final Path file;
++    private final UUID playerId;
+     private final Set<Stat<?>> dirty = Sets.newHashSet();
+ 
+     private static <T> Codec<Map<Stat<?>, Integer>> createTypedStatsCodec(final StatType<T> type) {
+@@ -64,8 +66,22 @@
+     }
+ 
+     public ServerStatsCounter(final MinecraftServer server, final Path file) {
++        this(server, file, playerIdFromFile(file));
++    }
++
++    public ServerStatsCounter(final MinecraftServer server, final Path file, final UUID playerId) {
+         this.file = file;
+-        if (Files.isRegularFile(file)) {
++        this.playerId = playerId;
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (cesium.enabled()) {
++            cesium.readStatistics(playerId).ifPresent(serialized -> {
++                try {
++                    this.parse(server.getFixerUpper(), StrictJsonParser.parse(new String(serialized, StandardCharsets.UTF_8)));
++                } catch (final RuntimeException failure) {
++                    throw new IllegalStateException("Failed to decode Cesium statistics for " + playerId, failure);
++                }
++            });
++        } else if (Files.isRegularFile(file)) {
+             try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                 JsonElement element = StrictJsonParser.parse(reader);
+                 this.parse(server.getFixerUpper(), element);
+@@ -88,8 +104,22 @@
+         // Paper end - Moved after stat fetching for player state file
+     }
+ 
++    private static UUID playerIdFromFile(final Path file) {
++        final String name = file.getFileName().toString().replaceFirst("\\.json$", "");
++        try {
++            return UUID.fromString(name);
++        } catch (final IllegalArgumentException ignored) {
++            return Util.NIL_UUID;
++        }
++    }
++
+     public void save() {
+         if (org.spigotmc.SpigotConfig.disableStatSaving) return; // Spigot
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (cesium.enabled()) {
++            cesium.writeStatistics(this.playerId, GSON.toJson(this.toJson()).getBytes(StandardCharsets.UTF_8));
++            return;
++        }
+         try {
+             FileUtil.createDirectoriesSafe(this.file.getParent());
+ 
+diff --git a/net/minecraft/world/level/chunk/storage/RegionFileStorage.java b/net/minecraft/world/level/chunk/storage/RegionFileStorage.java
+--- a/net/minecraft/world/level/chunk/storage/RegionFileStorage.java
++++ b/net/minecraft/world/level/chunk/storage/RegionFileStorage.java
+@@ -2,12 +2,15 @@
+ 
+ import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
+ import java.io.DataInputStream;
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
+ import java.io.DataOutputStream;
+ import java.io.IOException;
+ import java.nio.file.Path;
+ import net.minecraft.SharedConstants;
+ import net.minecraft.nbt.CompoundTag;
+ import net.minecraft.nbt.NbtAccounter;
++import java.util.Optional;
+ import net.minecraft.nbt.NbtIo;
+ import net.minecraft.nbt.StreamTagVisitor;
+ import net.minecraft.util.ExceptionCollector;
+@@ -23,6 +26,7 @@
+     private final RegionStorageInfo info;
+     private final Path folder;
+     private final boolean sync;
++    private final io.canvasmc.canvas.storage.cesium.CesiumStorageManager.@Nullable RegionStore cesiumStore;
+ 
+     // Paper start - recalculate region file headers
+     private final boolean isChunkData;
+@@ -86,16 +90,20 @@
+ 
+     @Override
+     public final boolean moonrise$doesRegionFileNotExistNoIO(final int chunkX, final int chunkZ) {
+-        return !this.doesRegionFilePossiblyExist(ChunkPos.pack(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT));
++        return this.cesiumStore == null
++            ? !this.doesRegionFilePossiblyExist(ChunkPos.pack(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT))
++            : false;
+     }
+ 
+     @Override
+     public synchronized final RegionFile moonrise$getRegionFileIfLoaded(final int chunkX, final int chunkZ) {
++        if (this.cesiumStore != null) return null;
+         return this.regionCache.getAndMoveToFirst(ChunkPos.pack(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT));
+     }
+ 
+     @Override
+     public synchronized final RegionFile moonrise$getRegionFileIfExists(final int chunkX, final int chunkZ) throws IOException {
++        if (this.cesiumStore != null) return null;
+         final long key = ChunkPos.pack(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT);
+ 
+         RegionFile ret = this.regionCache.getAndMoveToFirst(key);
+@@ -135,6 +143,20 @@
+     public final ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData moonrise$startWrite(
+         final int chunkX, final int chunkZ, final CompoundTag compound
+     ) throws IOException {
++        if (this.cesiumStore != null) {
++            if (compound == null) {
++                return new ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData(
++                    null, ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData.WriteResult.DELETE,
++                    null, null
++                );
++            }
++            final byte[] serialized = serializeCesium(compound);
++            return new ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData(
++                compound, ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData.WriteResult.WRITE,
++                null, ignored -> this.cesiumStore.write(chunkX, chunkZ, serialized)
++            );
++        }
++
+         if (compound == null) {
+             return new ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData(
+                 compound, ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData.WriteResult.DELETE,
+@@ -175,6 +197,15 @@
+     public final void moonrise$finishWrite(
+         final int chunkX, final int chunkZ, final ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData writeData
+     ) throws IOException {
++        if (this.cesiumStore != null) {
++            if (writeData.result() == ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData.WriteResult.DELETE) {
++                this.cesiumStore.write(chunkX, chunkZ, null);
++            } else {
++                writeData.write().run(null);
++            }
++            return;
++        }
++
+         final ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+         if (writeData.result() == ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.WriteData.WriteResult.DELETE) {
+             final RegionFile regionFile = this.moonrise$getRegionFileIfExists(chunkX, chunkZ);
+@@ -192,6 +223,20 @@
+     public final ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.ReadData moonrise$readData(
+         final int chunkX, final int chunkZ
+     ) throws IOException {
++        if (this.cesiumStore != null) {
++            final Optional<byte[]> serialized = this.cesiumStore.read(chunkX, chunkZ);
++            if (serialized.isEmpty()) {
++                return new ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.ReadData(
++                    ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.ReadData.ReadResult.NO_DATA,
++                    null, null, 0
++                );
++            }
++            return new ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.ReadData(
++                ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.ReadData.ReadResult.HAS_DATA,
++                new DataInputStream(new ByteArrayInputStream(serialized.get())), null, 0
++            );
++        }
++
+         final RegionFile regionFile = this.moonrise$getRegionFileIfExists(chunkX, chunkZ);
+ 
+         final DataInputStream input = regionFile == null ? null : regionFile.getChunkDataInputStream(new ChunkPos(chunkX, chunkZ));
+@@ -228,6 +273,22 @@
+     public final CompoundTag moonrise$finishRead(
+         final int chunkX, final int chunkZ, final ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO.RegionDataController.ReadData readData
+     ) throws IOException {
++        if (this.cesiumStore != null) {
++            try {
++                final CompoundTag ret = NbtIo.read(readData.input());
++                if (this.isChunkData) {
++                    final ChunkPos expected = new ChunkPos(chunkX, chunkZ);
++                    final ChunkPos actual = SerializableChunkData.getChunkCoordinate(ret);
++                    if (!expected.equals(actual)) {
++                        throw new IOException("Cesium chunk coordinate mismatch: requested " + expected + ", stored " + actual);
++                    }
++                }
++                return ret;
++            } finally {
++                readData.input().close();
++            }
++        }
++
+         try {
+             // Paper start - Attempt to recalculate regionfile header if it is corrupt
+             final CompoundTag ret = NbtIo.read(readData.input());
+@@ -271,6 +332,7 @@
+         this.sync = sync;
+         this.info = info;
+         this.isChunkData = info.dfuType()[0] == net.minecraft.util.datafix.DataFixTypes.CHUNK; // Paper - recalculate region file headers
++        this.cesiumStore = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current().regionStore(info);
+     }
+ 
+     @org.jetbrains.annotations.Contract("_, false -> !null") private @Nullable RegionFile getRegionFile(final ChunkPos pos, boolean existingOnly) throws IOException { // CraftBukkit
+@@ -309,7 +371,7 @@
+ 
+     // Paper start
+     private static void printOversizedLog(String msg, Path file, int x, int z) {
+-        LOGGER.error("{} ({} - {},{}) Go clean it up to remove this message. /minecraft:tp {} 128 {} - DO NOT REPORT THIS TO PAPER - You may ask for help on Discord, but do not file an issue. These error messages can not be removed.", msg, file.toString().replaceAll(".+[\\\\/]", ""), x, z, x << 4, z << 4);
++        LOGGER.error("{} ({} - {},{}) Go clean it up to remove this message. /minecraft:tp {} 128 {} - DO NOT REPORT THIS TO {} - You may ask for help on Discord, but do not file an issue. These error messages can not be removed.", msg, file.toString().replaceAll(".+[\\\\/]", ""), x, z, x << 4, z << 4, io.papermc.paper.ServerBuildInfo.buildInfo().brandName().toUpperCase()); // Canvas - Rebrand
+     }
+ 
+     private static CompoundTag readOversizedChunk(RegionFile regionfile, ChunkPos chunkCoordinate) throws IOException {
+@@ -345,6 +407,11 @@
+     // Paper end
+ 
+     public @Nullable CompoundTag read(final ChunkPos pos) throws IOException {
++        if (this.cesiumStore != null) {
++            final Optional<byte[]> serialized = this.cesiumStore.read(pos.x(), pos.z());
++            return serialized.isEmpty() ? null : deserializeCesium(serialized.get());
++        }
++
+         // CraftBukkit start - SPIGOT-5680: There's no good reason to preemptively create files on read, save that for writing
+         RegionFile region = this.getRegionFile(pos, true);
+         if (region == null) {
+@@ -382,6 +449,16 @@
+     }
+ 
+     public void scanChunk(final ChunkPos pos, final StreamTagVisitor scanner) throws IOException {
++        if (this.cesiumStore != null) {
++            final Optional<byte[]> serialized = this.cesiumStore.read(pos.x(), pos.z());
++            if (serialized.isPresent()) {
++                try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(serialized.get()))) {
++                    NbtIo.parse(input, scanner, NbtAccounter.unlimitedHeap());
++                }
++            }
++            return;
++        }
++
+         // CraftBukkit start - SPIGOT-5680: There's no good reason to preemptively create files on read, save that for writing
+         RegionFile region = this.getRegionFile(pos, true);
+         if (region == null) {
+@@ -397,6 +474,11 @@
+     }
+ 
+     public void write(final ChunkPos pos, final @Nullable CompoundTag value) throws IOException {
++        if (this.cesiumStore != null) {
++            this.cesiumStore.write(pos.x(), pos.z(), value == null ? null : serializeCesium(value));
++            return;
++        }
++
+         if (!SharedConstants.DEBUG_DONT_SAVE_WORLD) {
+             RegionFile region = this.getRegionFile(pos, value == null); // CraftBukkit // Paper - rewrite chunk system
+             // Paper start - rewrite chunk system
+@@ -443,6 +525,11 @@
+     }
+ 
+     public void flush() throws IOException {
++        if (this.cesiumStore != null) {
++            this.cesiumStore.flush();
++            return;
++        }
++
+         // Paper start - rewrite chunk system
+         synchronized (this) {
+             final ExceptionCollector<IOException> exceptionCollector = new ExceptionCollector<>();
+@@ -459,6 +546,20 @@
+         // Paper end - rewrite chunk system
+     }
+ 
++    private static byte[] serializeCesium(final CompoundTag value) throws IOException {
++        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
++        try (DataOutputStream output = new DataOutputStream(bytes)) {
++            NbtIo.write(value, output);
++        }
++        return bytes.toByteArray();
++    }
++
++    private static CompoundTag deserializeCesium(final byte[] value) throws IOException {
++        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(value))) {
++            return NbtIo.read(input);
++        }
++    }
++
+     public RegionStorageInfo info() {
+         return this.info;
+     }
+diff --git a/net/minecraft/world/level/storage/LevelStorageSource.java b/net/minecraft/world/level/storage/LevelStorageSource.java
+--- a/net/minecraft/world/level/storage/LevelStorageSource.java
++++ b/net/minecraft/world/level/storage/LevelStorageSource.java
+@@ -10,6 +10,8 @@
+ import com.mojang.serialization.Lifecycle;
+ import java.io.BufferedOutputStream;
+ import java.io.BufferedReader;
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
+ import java.io.IOException;
+ import java.io.UncheckedIOException;
+ import java.nio.file.FileVisitResult;
+@@ -276,6 +278,14 @@
+     }
+ 
+     private static CompoundTag readLevelDataTagRaw(final Path dataFile) throws IOException {
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (cesium.enabled()) {
++            final byte[] serialized = cesium.readWorldData()
++                .orElseThrow(() -> new IOException("Cesium world metadata is missing"));
++            try (ByteArrayInputStream input = new ByteArrayInputStream(serialized)) {
++                return NbtIo.readCompressed(input, NbtAccounter.uncompressedQuota());
++            }
++        }
+         return NbtIo.readCompressed(dataFile, NbtAccounter.uncompressedQuota());
+     }
+ 
+@@ -460,7 +470,7 @@
+         private DirectoryLock lock;
+         private final LevelStorageSource.LevelDirectory levelDirectory;
+         private final String levelId;
+-        private final Map<LevelResource, Path> resources = Maps.newHashMap();
++        private final Map<LevelResource, Path> resources = Maps.newConcurrentMap(); // Canvas - region threading - accessed by multiple threads, use concurrent equivalent
+ 
+         private LevelStorageAccess(final String levelId, final Path path) throws IOException {
+             this.levelId = levelId;
+@@ -554,6 +564,9 @@
+         }
+ 
+         public Dynamic<?> getUnfixedDataTagWithFallback() throws IOException {
++            if (io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current().enabled()) {
++                return this.getUnfixedDataTag(false);
++            }
+             Dynamic<?> unfixedDataTag;
+             try {
+                 unfixedDataTag = this.getUnfixedDataTag(false);
+@@ -598,6 +611,18 @@
+ 
+         private void saveLevelData(final CompoundTag root) {
+             Path worldDir = this.levelDirectory.path();
++            final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++            if (cesium.enabled()) {
++                try {
++                    final ByteArrayOutputStream serialized = new ByteArrayOutputStream();
++                    NbtIo.writeCompressed(root, serialized);
++                    cesium.writeWorldData(serialized.toByteArray()).toCompletableFuture().join();
++                } catch (final Exception failure) {
++                    LevelStorageSource.LOGGER.error("Failed to save Cesium level {}", worldDir, failure);
++                    throw new IllegalStateException("Failed to save Cesium level metadata", failure);
++                }
++                return;
++            }
+ 
+             try {
+                 Path dataFile = Files.createTempFile(worldDir, "level", ".dat");
+@@ -719,7 +744,9 @@
+         }
+ 
+         public boolean hasWorldData() {
+-            return Files.exists(this.levelDirectory.dataFile()) || Files.exists(this.levelDirectory.oldDataFile());
++            final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++            return cesium.enabled() ? cesium.readWorldData().isPresent()
++                : Files.exists(this.levelDirectory.dataFile()) || Files.exists(this.levelDirectory.oldDataFile());
+         }
+ 
+         @Override
+diff --git a/net/minecraft/world/level/storage/PlayerDataStorage.java b/net/minecraft/world/level/storage/PlayerDataStorage.java
+--- a/net/minecraft/world/level/storage/PlayerDataStorage.java
++++ b/net/minecraft/world/level/storage/PlayerDataStorage.java
+@@ -2,6 +2,8 @@
+ 
+ import com.mojang.datafixers.DataFixer;
+ import com.mojang.logging.LogUtils;
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
+ import java.io.File;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+@@ -9,6 +11,7 @@
+ import java.time.ZonedDateTime;
+ import java.util.Optional;
+ import net.minecraft.nbt.CompoundTag;
++import java.util.UUID;
+ import net.minecraft.nbt.NbtAccounter;
+ import net.minecraft.nbt.NbtIo;
+ import net.minecraft.nbt.NbtUtils;
+@@ -35,13 +38,20 @@
+         try (ProblemReporter.ScopedCollector reporter = new ProblemReporter.ScopedCollector(player.problemPath(), LOGGER)) {
+             TagValueOutput output = TagValueOutput.createWithContext(reporter, player.registryAccess());
+             player.saveWithoutId(output);
+-            Path playerDirPath = this.playerDir.toPath();
+-            Path tmpFile = Files.createTempFile(playerDirPath, player.getStringUUID() + "-", ".dat");
+             CompoundTag dataToStore = output.buildResult();
+-            NbtIo.writeCompressed(dataToStore, tmpFile);
+-            Path realFile = playerDirPath.resolve(player.getStringUUID() + ".dat");
+-            Path oldFile = playerDirPath.resolve(player.getStringUUID() + ".dat_old");
+-            Util.safeReplaceFile(realFile, tmpFile, oldFile);
++            final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++            if (cesium.enabled()) {
++                final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
++                NbtIo.writeCompressed(dataToStore, bytes);
++                cesium.writePlayer(player.getUUID(), bytes.toByteArray());
++            } else {
++                Path playerDirPath = this.playerDir.toPath();
++                Path tmpFile = Files.createTempFile(playerDirPath, player.getStringUUID() + "-", ".dat");
++                NbtIo.writeCompressed(dataToStore, tmpFile);
++                Path realFile = playerDirPath.resolve(player.getStringUUID() + ".dat");
++                Path oldFile = playerDirPath.resolve(player.getStringUUID() + ".dat_old");
++                Util.safeReplaceFile(realFile, tmpFile, oldFile);
++            }
+         } catch (Exception ignored) {
+             LOGGER.warn("Failed to save player data for {}", player.getPlainTextName(), ignored); // Paper - Print exception
+         }
+@@ -91,6 +101,28 @@
+     }
+ 
+     public Optional<CompoundTag> load(final NameAndId nameAndId) {
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager cesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (cesium.enabled()) {
++            Optional<byte[]> serialized = cesium.readPlayer(nameAndId.id());
++            if (serialized.isEmpty() && org.bukkit.Bukkit.getOnlineMode()) {
++                final UUID offlineId = net.minecraft.core.UUIDUtil.createOfflinePlayerUUID(nameAndId.name());
++                serialized = cesium.readPlayer(offlineId);
++                if (serialized.isPresent()) {
++                    LOGGER.warn("Using offline mode UUID data for player {} as it is the only copy we can find.", nameAndId.name());
++                }
++            }
++            return serialized.map(bytes -> {
++                try {
++                    return NbtIo.readCompressed(new ByteArrayInputStream(bytes), NbtAccounter.unlimitedHeap());
++                } catch (final Exception failure) {
++                    throw new IllegalStateException("Failed to decode Cesium player data for " + nameAndId.name(), failure);
++                }
++            }).map(tag -> {
++                int version = NbtUtils.getDataVersion(tag);
++                return ca.spottedleaf.dataconverter.minecraft.MCDataConverter.convertTag(ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry.PLAYER, tag, version, ca.spottedleaf.dataconverter.minecraft.util.Version.getCurrentVersion());
++            });
++        }
++
+         Optional<CompoundTag> optTag = this.load(nameAndId, ".dat");
+         if (optTag.isEmpty()) {
+             this.backup(nameAndId, ".dat");
+diff --git a/net/minecraft/world/level/storage/SavedDataStorage.java b/net/minecraft/world/level/storage/SavedDataStorage.java
+--- a/net/minecraft/world/level/storage/SavedDataStorage.java
++++ b/net/minecraft/world/level/storage/SavedDataStorage.java
+@@ -5,6 +5,8 @@
+ import com.mojang.logging.LogUtils;
+ import com.mojang.serialization.Codec;
+ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
+ import java.io.DataInputStream;
+ import java.io.IOException;
+ import java.io.InputStream;
+@@ -27,6 +29,7 @@
+ import net.minecraft.nbt.NbtUtils;
+ import net.minecraft.nbt.Tag;
+ import net.minecraft.resources.Identifier;
++import net.minecraft.resources.ResourceKey;
+ import net.minecraft.resources.RegistryOps;
+ import net.minecraft.util.FastBufferedInputStream;
+ import net.minecraft.util.FileUtil;
+@@ -44,13 +47,25 @@
+     private final DataFixer fixerUpper;
+     private final HolderLookup.Provider registries;
+     private final Path dataFolder;
++    private final ResourceKey<net.minecraft.world.level.Level> cesiumDimension;
+     private CompletableFuture<?> pendingWriteFuture = CompletableFuture.completedFuture(null);
+     private boolean closed;
+ 
+     public SavedDataStorage(final Path dataFolder, final DataFixer fixerUpper, final HolderLookup.Provider registries) {
++        this(dataFolder, fixerUpper, registries, null);
++    }
++
++    public SavedDataStorage(final Path dataFolder, final DataFixer fixerUpper, final HolderLookup.Provider registries,
++                            final @Nullable ResourceKey<net.minecraft.world.level.Level> cesiumDimension) {
+         this.fixerUpper = fixerUpper;
+         this.dataFolder = dataFolder;
+         this.registries = registries;
++        this.cesiumDimension = cesiumDimension;
++    }
++
++    public SavedDataStorage(final Path dataFolder, final ResourceKey<net.minecraft.world.level.Level> cesiumDimension,
++                            final DataFixer fixerUpper, final HolderLookup.Provider registries) {
++        this(dataFolder, fixerUpper, registries, cesiumDimension);
+     }
+ 
+     private Path getDataFile(final Identifier id) {
+@@ -122,21 +137,37 @@
+     }
+ 
+     private <T extends SavedData> @Nullable T readSavedData(final SavedDataType<T> type) {
++        final boolean usingCesium = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current().enabled();
+         try {
+-            Path file = this.getDataFile(type.id());
+-            if (Files.exists(file)) {
+-                CompoundTag tag = this.readTagFromDisk(file, type.dataFixType(), SharedConstants.getCurrentVersion().dataVersion().version());
+-                RegistryOps<Tag> ops = this.registries.createSerializationContext(NbtOps.INSTANCE);
+-                return type.codec()
+-                    .parse(ops, tag.get("data"))
+-                    .resultOrPartial(error -> LOGGER.error("Failed to parse saved data for '{}': {}", type, error))
+-                    .orElse(null);
+-            }
++            final CompoundTag updated;
++            final io.canvasmc.canvas.storage.cesium.CesiumStorageManager.SavedDataStore cesium = this.cesiumStore();
++            if (cesium != null) {
++                final Optional<byte[]> serialized = cesium.read(type.id().toString());
++                if (serialized.isEmpty()) return null;
++                final CompoundTag tag;
++                try (ByteArrayInputStream input = new ByteArrayInputStream(serialized.get())) {
++                    tag = NbtIo.readCompressed(input, NbtAccounter.unlimitedHeap());
++                }
++                final int version = NbtUtils.getDataVersion(tag, 1343);
++                updated = type.dataFixType().update(this.fixerUpper, tag, version,
++                    SharedConstants.getCurrentVersion().dataVersion().version());
++            } else {
++                Path file = this.getDataFile(type.id());
++                if (!Files.exists(file)) return null;
++                updated = this.readTagFromDisk(file, type.dataFixType(), SharedConstants.getCurrentVersion().dataVersion().version());
++            }
++            RegistryOps<Tag> ops = this.registries.createSerializationContext(NbtOps.INSTANCE);
++            return type.codec()
++                .parse(ops, updated.get("data"))
++                .resultOrPartial(error -> LOGGER.error("Failed to parse saved data for '{}': {}", type, error))
++                .orElse(null);
+         } catch (Exception e) {
+             LOGGER.error("Error loading saved data: {}", type, e);
+-        }
+-
+-        return null;
++            if (usingCesium) {
++                throw new IllegalStateException("Failed to decode Cesium saved data " + type.id(), e);
++            }
++            return null;
++        }
+     }
+ 
+     public <T extends SavedData> void set(final SavedDataType<T> type, final T data) {
+@@ -304,8 +335,19 @@
+     }
+ 
+     private void tryWrite(final SavedDataType<?> type, final CompoundTag tag) {
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager.SavedDataStore cesium = this.cesiumStore();
++        if (cesium != null) {
++            try {
++                final ByteArrayOutputStream serialized = new ByteArrayOutputStream();
++                NbtIo.writeCompressed(tag, serialized);
++                cesium.write(type.id().toString(), serialized.toByteArray()).toCompletableFuture().join();
++            } catch (final IOException failure) {
++                throw new java.util.concurrent.CompletionException(failure);
++            }
++            return;
++        }
++
+         Path path = this.getDataFile(type.id());
+-
+         try {
+             FileUtil.createDirectoriesSafe(path.getParent());
+             NbtIo.writeCompressed(tag, path);
+@@ -314,6 +356,15 @@
+         }
+     }
+ 
++    private io.canvasmc.canvas.storage.cesium.CesiumStorageManager.@Nullable SavedDataStore cesiumStore() {
++        final io.canvasmc.canvas.storage.cesium.CesiumStorageManager manager = io.canvasmc.canvas.storage.cesium.CesiumStorageManager.current();
++        if (!manager.enabled()) return null;
++        if (this.cesiumDimension == null) {
++            throw new IllegalStateException("Cesium saved-data storage requires a dimension-qualified key");
++        }
++        return manager.savedData(this.cesiumDimension);
++    }
++
+     public void saveAndJoin() {
+         this.scheduleSave().join();
+     }
+diff --git a/net/minecraft/gametest/framework/GameTestServer.java b/net/minecraft/gametest/framework/GameTestServer.java
+--- a/net/minecraft/gametest/framework/GameTestServer.java
++++ b/net/minecraft/gametest/framework/GameTestServer.java
+@@ -177,6 +177,7 @@
+ 
+     @Override
+     protected boolean initServer() {
++        this.initializePersistentStorage(false);
+         // Paper start
+         this.setPlayerList(new PlayerList(this, this.registries(), this.playerDataStorage, new EmptyNotificationService()) {
+             @Override
+-- 
+2.52.0.windows.1
