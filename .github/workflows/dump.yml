@@ -32,25 +32,24 @@ jobs:
       - name: Apply patches
         run: ./gradlew applyAllPatches --no-configuration-cache --no-daemon
 
-      - name: Locate applied sources root
+      - name: Locate and verify applied sources
         id: locate
         run: |
-          root=""
-          for f in $(find . -type f -path "*net/minecraft/server/MinecraftServer.java"); do
-            d="${f%net/minecraft/server/MinecraftServer.java}"
-            if [ -f "${d}io/canvasmc/canvas/GlobalConfiguration.java" ]; then root="$d"; break; fi
-          done
-          if [ -z "$root" ]; then
-            echo "::error::no tree with both net/minecraft and io/canvasmc found; candidates:"
-            find . -type f -path "*net/minecraft/server/MinecraftServer.java"
-            exit 1
-          fi
-          echo "root=$root" >> "$GITHUB_OUTPUT"
-          echo "Applied sources root: $root"
-          ls "$root" | head -10
+          nms=petiole-server/src/minecraft/java
+          main=petiole-server/src/main/java
+          [ -f "$nms/net/minecraft/server/MinecraftServer.java" ] || { echo "::error::$nms missing"; exit 1; }
+          [ -f "$main/io/canvasmc/canvas/GlobalConfiguration.java" ] || { echo "::error::$main missing"; exit 1; }
+          echo "root=$nms" >> "$GITHUB_OUTPUT"
+          echo "== sanity: batch-1 markers =="
+          grep -c "nonFlushPacketSending" "$nms/net/minecraft/network/Connection.java" || echo "::error::batch-1 patches not applied"
+          grep -c "disableRootWarning" "$nms/net/minecraft/server/dedicated/DedicatedServer.java" || echo "::error::batch-1 patches not applied"
 
       - name: Pack applied sources
-        run: tar -czf applied-src.tar.gz -C "${{ steps.locate.outputs.root }}" .
+        run: |
+          mkdir stage
+          cp -a petiole-server/src/minecraft/java/. stage/
+          cp -a petiole-server/src/main/java/. stage/
+          tar -czf applied-src.tar.gz -C stage .
 
       - name: Upload applied tree
         uses: actions/upload-artifact@v4
