@@ -13,7 +13,7 @@ index 2958b47d82064eb1ef7578e8515dee3eaa55d330..fd421bef0db76d9047003276f288a6fd
 +++ b/net/minecraft/world/phys/shapes/EntityCollisionContext.java
 @@ -12,10 +12,7 @@ import net.minecraft.world.level.material.FluidState;
  import org.jspecify.annotations.Nullable;
-
+ 
  public class EntityCollisionContext implements CollisionContext {
 -    private final boolean descending;
 -    private final double entityBottom;
@@ -22,7 +22,7 @@ index 2958b47d82064eb1ef7578e8515dee3eaa55d330..fd421bef0db76d9047003276f288a6fd
 +    private final boolean placement; // Gale - Airplane - make EntityCollisionContext a live representation - remove these and pray no plugin uses them
      private final boolean alwaysCollideWithFluid;
      private final @Nullable Entity entity;
-
+ 
 @@ -27,29 +24,23 @@ public class EntityCollisionContext implements CollisionContext {
          final boolean alwaysCollideWithFluid,
          final @Nullable Entity entity
@@ -35,7 +35,7 @@ index 2958b47d82064eb1ef7578e8515dee3eaa55d330..fd421bef0db76d9047003276f288a6fd
          this.alwaysCollideWithFluid = alwaysCollideWithFluid;
          this.entity = entity;
      }
-
+ 
      @Deprecated
      protected EntityCollisionContext(final Entity entity, final boolean alwaysCollideWithFluid, final boolean placement) {
 -        this(
@@ -52,26 +52,26 @@ index 2958b47d82064eb1ef7578e8515dee3eaa55d330..fd421bef0db76d9047003276f288a6fd
 +        this.placement = placement;
 +        // Gale end - Airplane - make EntityCollisionContext a live representation - remove unneeded things
      }
-
+ 
      @Override
      public boolean isHoldingItem(final Item item) {
 -        return this.heldItem.is(item);
 +        return this.entity instanceof LivingEntity livingEntity ? livingEntity.getMainHandItem().is(item) : ItemStack.EMPTY.is(item); // Gale - Airplane - make EntityCollisionContext a live representation
      }
-
+ 
      @Override
 @@ -69,12 +60,12 @@ public class EntityCollisionContext implements CollisionContext {
-
+ 
      @Override
      public boolean isDescending() {
 -        return this.descending;
 +        return this.entity != null && this.entity.isDescending(); // Gale - Airplane - make EntityCollisionContext a live representation
      }
-
+ 
      @Override
      public boolean isAbove(final VoxelShape shape, final BlockPos pos, final boolean defaultValue) {
 -        return this.entityBottom > pos.getY() + shape.max(Direction.Axis.Y) - 1.0E-5F;
 +        return (this.entity == null ? -Double.MAX_VALUE : entity.getY()) > (double) pos.getY() + shape.max(Direction.Axis.Y) - (double) 1.0E-5F; // Gale - Airplane - make EntityCollisionContext a live representation
      }
-
+ 
      public @Nullable Entity getEntity() {

@@ -8,17 +8,18 @@ Original author: Martijn Muijsers (Gale; based on JettPack by Simon Gardling).
 Canvas adaptation: Gale logToConsole.playerLoginLocations config gate mapped to Canvas logs.playerLoginLocations (Gale default true kept); Purpur BossBarTask context line dropped for the Folia base, hunk line numbers shifted by one accordingly.
 
 diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
-index 3da54c71d72a5403302643a141b3d7d78fda4ee3..d34ed8b9f7ec0cf39fabe2f128c0db0070db44ab 100644
+index aba351aa1671f17de2750c207b0e4b4144a903ea..ebfb5b35d343d8bd7902ba64b5595618135fca97 100644
 --- a/net/minecraft/server/players/PlayerList.java
 +++ b/net/minecraft/server/players/PlayerList.java
-@@ -315,5 +315,6 @@ public abstract class PlayerList {
+@@ -385,6 +385,7 @@ public abstract class PlayerList {
+             scoreboard.addPlayerToTeam(player.getScoreboardName(), collideRuleTeam);
          }
          // Paper end - Configurable player collision
 +        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.playerLoginLocations) { // Gale - JettPack - make logging login location configurable
          // CraftBukkit start - moved down
          LOGGER.info(
              "{}[{}] logged in with entity id {} at ([{}]{}, {}, {})", // Paper - add world identifier
-@@ -327,6 +327,16 @@ public abstract class PlayerList {
+@@ -397,6 +398,16 @@ public abstract class PlayerList {
              player.getZ()
          );
          // CraftBukkit end - moved down

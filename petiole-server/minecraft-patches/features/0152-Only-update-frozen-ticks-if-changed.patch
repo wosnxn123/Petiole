@@ -8,10 +8,11 @@ Original author: hayanesuru.
 Canvas adaptation: context adjusted to Folia base - the profiler.push("freezing") line referenced by the upstream hunk context does not exist in the Folia base and was dropped from the context.
 
 diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index f55ffb74bf907a566a17f5640c021a9e60a7999a..2bb1c4869a07dcbb5183ebf3f8980ac9bde9ee6e 100644
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
-@@ -3852,6 +3852,12 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+@@ -3853,7 +3853,13 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+ 
          if (this.level() instanceof ServerLevel serverLevel) {
              if ((!this.isInPowderSnow || !this.canFreeze()) && !this.freezeLocked) { // Paper - Freeze Tick Lock API
 -                this.setTicksFrozen(Math.max(0, this.getTicksFrozen() - 2));

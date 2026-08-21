@@ -8,10 +8,11 @@ Original author: violetc.
 Canvas adaptation: upstream LeavesConfig.performance.storeMobCountsInArray gate (upstream default true) dropped; optimized array path ported unconditionally and the now-dead Object2IntMap counts field removed (its fastutil imports in the file become unused but harmless).
 
 diff --git a/net/minecraft/world/level/LocalMobCapCalculator.java b/net/minecraft/world/level/LocalMobCapCalculator.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index 5b3808e6ff58d350fe3fd65fb56e8f209e1b2c93..d0e346c20ad2da7174978211a2c7e697669d79d5 100644
 --- a/net/minecraft/world/level/LocalMobCapCalculator.java
 +++ b/net/minecraft/world/level/LocalMobCapCalculator.java
-@@ -43,13 +43,13 @@
+@@ -42,14 +42,14 @@ public class LocalMobCapCalculator {
+     }
  
      private static class MobCounts {
 -        private final Object2IntMap<MobCategory> counts = new Object2IntOpenHashMap<>(MobCategory.values().length);

@@ -8,10 +8,10 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.nullIdDisconnections.
 
 diff --git a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index 0a888ff522649fe6cb164fb5636633b51d8a5264..10d3bdf582ecabaa3e86aca2c2db4faace66e4c3 100644
+index d7372d5139f7263806f568790174572d184966e2..c253c4cf9b4f3a5f6f8d3218ac47f96cbce0e07c 100644
 --- a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-@@ -135,6 +135,14 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
+@@ -141,6 +141,14 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
      // Paper end
      public void disconnect(final Component component) {
          try {

@@ -8,10 +8,10 @@ Original author: Taiyou06.
 Canvas adaptation: context adjusted to Folia base - LivingEntity#isAlive cheapest-check-first reordering is already present in the Canvas base ("// Canvas - cheapest check first"), so that hunk was dropped.
 
 diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index de239b5da9f2d26893e86f8026f896fe73267c3b..6612998275afaf31dd86ff90f07a8fad6797b6c7 100644
 --- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java
 +++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java
-@@ -547,6 +547,15 @@ public final class ChunkEntitySlices {
+@@ -537,6 +537,15 @@ public final class ChunkEntitySlices {
  
              final BasicEntityList<Entity>[] entitiesBySection = this.entitiesBySection;
  
@@ -27,7 +27,7 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
              for (int section = min; section <= max; ++section) {
                  final BasicEntityList<Entity> list = entitiesBySection[section - minSection];
  
-@@ -555,11 +564,19 @@ public final class ChunkEntitySlices {
+@@ -545,11 +554,19 @@ public final class ChunkEntitySlices {
                  }
  
                  final Entity[] storage = list.storage;
@@ -49,7 +49,7 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
                          continue;
                      }
  
-@@ -587,6 +604,15 @@ public final class ChunkEntitySlices {
+@@ -577,6 +594,15 @@ public final class ChunkEntitySlices {
  
              final BasicEntityList<Entity>[] entitiesBySection = this.entitiesBySection;
  
@@ -65,7 +65,7 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
              for (int section = min; section <= max; ++section) {
                  final BasicEntityList<Entity> list = entitiesBySection[section - minSection];
  
-@@ -595,11 +621,18 @@ public final class ChunkEntitySlices {
+@@ -585,11 +611,18 @@ public final class ChunkEntitySlices {
                  }
  
                  final Entity[] storage = list.storage;

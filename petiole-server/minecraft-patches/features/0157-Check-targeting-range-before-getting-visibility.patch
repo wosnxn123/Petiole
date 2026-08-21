@@ -8,12 +8,12 @@ Original author: Martijn Muijsers.
 Canvas adaptation: none.
 
 diff --git a/net/minecraft/world/entity/ai/targeting/TargetingConditions.java b/net/minecraft/world/entity/ai/targeting/TargetingConditions.java
-index a80812af1cae93d930722ada75be2f167fcb7fc9..a3d270f323d4d5bea09f3e502ad814ffda500c27 100644
+index 832260c9b2adabd715545ea7e4c0b4c6d4a13d68..f00c019d63758933dd0a5ef338dc54792a51687c 100644
 --- a/net/minecraft/world/entity/ai/targeting/TargetingConditions.java
 +++ b/net/minecraft/world/entity/ai/targeting/TargetingConditions.java
-@@ -83,9 +83,17 @@ public class TargetingConditions {
+@@ -79,9 +79,17 @@ public class TargetingConditions {
              }
-
+ 
              if (this.range > 0.0) {
 -                double modifier = this.testInvisible ? target.getVisibilityPercent(targeter) : 1.0;
 -                double visibilityDistance = Math.max(this.range * modifier, 2.0);

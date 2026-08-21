@@ -8,7 +8,7 @@ Original author: Dreeam.
 Canvas adaptation: Gale logToConsole.invalidLegacyTextComponent config gate mapped to Canvas logs.invalidLegacyTextComponent.
 
 diff --git a/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java b/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java
-index 44e74a97debbb36deb50a1f726ee25cc5272ab09..e1b2447e3a8655b79deaef0163159e9681acb9a7 100644
+index 44e74a97debbb36deb50a1f726ee25cc5272ab09..726641988791fa643356b68bea5d56205ab9865f 100644
 --- a/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java
 +++ b/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java
 @@ -254,7 +254,7 @@ public final class V4290 {

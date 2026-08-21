@@ -8,10 +8,10 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.notSecureMarker.
 
 diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
-index 062117904e5ff2809e5ce9f2becacab302b57082..fd59a49fccf24a68e01e12326436c48c5b5189a5 100644
+index 061adbc15bdc9b538d2ebf1b6806c9c01a331ed4..aba351aa1671f17de2750c207b0e4b4144a903ea 100644
 --- a/net/minecraft/server/players/PlayerList.java
 +++ b/net/minecraft/server/players/PlayerList.java
-@@ -1173,7 +1173,7 @@ public abstract class PlayerList {
+@@ -1351,7 +1351,7 @@ public abstract class PlayerList {
      public void broadcastChatMessage(final PlayerChatMessage message, final Predicate<ServerPlayer> isFiltered, final @Nullable ServerPlayer senderPlayer, final ChatType.Bound chatType, final @Nullable Function<net.kyori.adventure.audience.Audience, Component> unsignedFunction) {
          // Paper end
          boolean trusted = this.verifyChatTrusted(message);

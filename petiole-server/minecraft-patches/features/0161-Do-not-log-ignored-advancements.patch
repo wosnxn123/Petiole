@@ -8,7 +8,7 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.ignoredAdvancements (upstream Gale logToConsole.ignoredAdvancements).
 
 diff --git a/net/minecraft/server/PlayerAdvancements.java b/net/minecraft/server/PlayerAdvancements.java
-index 11a95d6bb3d0c221d377d7911d5a68c592fb32b0..b0008500794efc8a1494834d8805734d253bf6ab 100644
+index aac9dbb9803d472617b094c40033dde328eddb32..6ad4ad87991c90f51cff8cccd74690cfa2cb8a67 100644
 --- a/net/minecraft/server/PlayerAdvancements.java
 +++ b/net/minecraft/server/PlayerAdvancements.java
 @@ -146,7 +146,7 @@ public class PlayerAdvancements {

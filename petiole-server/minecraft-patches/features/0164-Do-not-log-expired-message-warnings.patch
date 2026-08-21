@@ -8,7 +8,7 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.expiredMessageWarning.
 
 diff --git a/net/minecraft/network/chat/PlayerChatMessage.java b/net/minecraft/network/chat/PlayerChatMessage.java
-index 3a9d3097a836bd7acce8b60d32c9d9aea12de1fc..9d0ebbaac3cfba850ad62a9e0d97973f6664d303 100644
+index 3a9d3097a836bd7acce8b60d32c9d9aea12de1fc..3a429871252125abda5572efda0e249c6568e3a0 100644
 --- a/net/minecraft/network/chat/PlayerChatMessage.java
 +++ b/net/minecraft/network/chat/PlayerChatMessage.java
 @@ -143,7 +143,7 @@ public record PlayerChatMessage(
@@ -21,7 +21,7 @@ index 3a9d3097a836bd7acce8b60d32c9d9aea12de1fc..9d0ebbaac3cfba850ad62a9e0d97973f
  
      public boolean hasExpiredClient(final Instant now) {
 diff --git a/net/minecraft/network/chat/SignedMessageChain.java b/net/minecraft/network/chat/SignedMessageChain.java
-index fd5059c9f37af798036f2ac5dd55d7f9a4aafe97..3aa85202ed8fc2f45ca37504834ad2dcc141507a 100644
+index c7bef2318a68caae0be5d57dfcdc53927849a805..76f3c6cf24baedbaa4bb38ea9348ed19b46c2271 100644
 --- a/net/minecraft/network/chat/SignedMessageChain.java
 +++ b/net/minecraft/network/chat/SignedMessageChain.java
 @@ -61,7 +61,7 @@ public class SignedMessageChain {

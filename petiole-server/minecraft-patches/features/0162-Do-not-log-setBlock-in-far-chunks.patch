@@ -8,10 +8,10 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.setBlockInFarChunk.
 
 diff --git a/net/minecraft/server/level/WorldGenRegion.java b/net/minecraft/server/level/WorldGenRegion.java
-index ebb0923b38a7529e7df531b3947a0421df29d654..015539951e2a6af0e7b50c05512d1f6200ef2797 100644
+index 0b1f5a85c17c4c5266701aaa7959e95f848ad6c1..625d8a9a3c4419d734818abd13fe196a30ae0e6c 100644
 --- a/net/minecraft/server/level/WorldGenRegion.java
 +++ b/net/minecraft/server/level/WorldGenRegion.java
-@@ -327,7 +327,7 @@ public class WorldGenRegion implements WorldGenLevel {
+@@ -335,7 +335,7 @@ public class WorldGenRegion implements WorldGenLevel {
              int chunkX = SectionPos.blockToSectionCoord(pos.getX());
              int chunkZ = SectionPos.blockToSectionCoord(pos.getZ());
              // Paper start - Buffer OOB setBlock calls

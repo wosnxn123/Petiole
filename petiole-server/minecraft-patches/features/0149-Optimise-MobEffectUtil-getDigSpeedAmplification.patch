@@ -8,7 +8,7 @@ Original author: Taiyou06.
 Canvas adaptation: none.
 
 diff --git a/net/minecraft/world/effect/MobEffectUtil.java b/net/minecraft/world/effect/MobEffectUtil.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index f1c57bc4310784999784d77678ea88912d6e41db..581aea02f6ed53d072caf47ddc051b497798fa33 100644
 --- a/net/minecraft/world/effect/MobEffectUtil.java
 +++ b/net/minecraft/world/effect/MobEffectUtil.java
 @@ -27,17 +27,21 @@ public final class MobEffectUtil {

@@ -8,10 +8,10 @@ Original author: HaHaWTH.
 Canvas adaptation: none.
 
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index cbb93ee8cf00486e4d5917e8c6c3389f60069ae9..081f39ee72f48ae9951d54574e8acba6e8549942 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
-@@ -3850,8 +3850,10 @@ public abstract class Entity
+@@ -3739,8 +3739,10 @@ public abstract class Entity
      }
  
      public boolean isOnFire() {

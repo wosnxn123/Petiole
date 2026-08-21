@@ -8,7 +8,7 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.invalidStatistics (upstream Gale logToConsole.invalidStatistics).
 
 diff --git a/net/minecraft/stats/ServerStatsCounter.java b/net/minecraft/stats/ServerStatsCounter.java
-index f5beb001b938072e78c0ead7e0ad0499784ed1cf..eb40f1bdab68d51047df702a0e4ad8a7931a134f 100644
+index f5beb001b938072e78c0ead7e0ad0499784ed1cf..c6655421f6377b36cc3e47e2867afaccb53c71ae 100644
 --- a/net/minecraft/stats/ServerStatsCounter.java
 +++ b/net/minecraft/stats/ServerStatsCounter.java
 @@ -121,7 +121,7 @@ public class ServerStatsCounter extends StatsCounter {

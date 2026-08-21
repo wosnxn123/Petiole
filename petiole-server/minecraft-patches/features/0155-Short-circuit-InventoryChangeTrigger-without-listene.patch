@@ -8,12 +8,11 @@ Original author: MrlingXD.
 Canvas adaptation: context adjusted to Canvas base (disableCriterionTrigger gate from features/0002 sits at the top of both trigger methods).
 
 diff --git a/net/minecraft/advancements/triggers/InventoryChangeTrigger.java b/net/minecraft/advancements/triggers/InventoryChangeTrigger.java
-index db51d57ea1333d2f5c839a8a4df05e276fb15acd..a17e9acff9be836d2aa3886686dd3f1514417665 100644
+index 436374e6429f36b310a30514e340adc7364027e7..7d2cc96d393e18c87978ad406ab6398d2a4baa12 100644
 --- a/net/minecraft/advancements/triggers/InventoryChangeTrigger.java
 +++ b/net/minecraft/advancements/triggers/InventoryChangeTrigger.java
-@@ -24,7 +24,14 @@ public class InventoryChangeTrigger extends SimpleCriterionTrigger<InventoryChan
-     }
-
+@@ -25,6 +25,13 @@ public class InventoryChangeTrigger extends SimpleCriterionTrigger<InventoryChan
+ 
      public void trigger(final ServerPlayer player, final Inventory inventory, final ItemStack changedItem) {
          if (player.level().canvasConfig().disableCriterionTrigger) return; // Canvas - disable criterion trigger config
 +        // Leaf start - skip slot scan when nobody has a pending InventoryChangeTrigger listener
@@ -26,19 +25,19 @@ index db51d57ea1333d2f5c839a8a4df05e276fb15acd..a17e9acff9be836d2aa3886686dd3f15
          int slotsFull = 0;
          int slotsEmpty = 0;
          int slotsOccupied = 0;
-@@ -41,7 +47,7 @@ public class InventoryChangeTrigger extends SimpleCriterionTrigger<InventoryChan
+@@ -41,7 +48,7 @@ public class InventoryChangeTrigger extends SimpleCriterionTrigger<InventoryChan
              }
          }
-
+ 
 -        this.trigger(player, inventory, changedItem, slotsFull, slotsEmpty, slotsOccupied);
 +        this.trigger(player, inventory, changedItem, slotsFull, slotsEmpty, slotsOccupied, listeners);  // Leaf - skip slot scan when nobody has a pending InventoryChangeTrigger listener
      }
-
+ 
      private void trigger(
-@@ -50,6 +56,14 @@ public class InventoryChangeTrigger extends SimpleCriterionTrigger<InventoryChan
+@@ -50,6 +57,14 @@ public class InventoryChangeTrigger extends SimpleCriterionTrigger<InventoryChan
          this.trigger(player, t -> t.matches(inventory, changedItem, slotsFull, slotsEmpty, slotsOccupied));
      }
-
+ 
 +    // Leaf start - skip slot scan when nobody has a pending InventoryChangeTrigger listener
 +    private void trigger(
 +        final ServerPlayer player, final Inventory inventory, final ItemStack changedItem, final int slotsFull, final int slotsEmpty, final int slotsOccupied, final java.util.Map<net.minecraft.server.PlayerAdvancements.TriggerInstanceKey, InventoryChangeTrigger.TriggerInstance> listeners
@@ -51,12 +50,10 @@ index db51d57ea1333d2f5c839a8a4df05e276fb15acd..a17e9acff9be836d2aa3886686dd3f15
          @Override Optional<ContextAwarePredicate> player, InventoryChangeTrigger.TriggerInstance.Slots slots, List<ItemPredicate> items
      ) implements SimpleCriterionTrigger.SimpleInstance {
 diff --git a/net/minecraft/advancements/triggers/SimpleCriterionTrigger.java b/net/minecraft/advancements/triggers/SimpleCriterionTrigger.java
-index d76a338ab4f326e6105adc451eee3d4601403c98..4926a3d0324c217eef1e6b1db01315ea8707cdae 100644
+index dde0a29aab63886acbb8084f05b50f8df2932346..0ed127d5ac3e95ea932e6a9bf2387304cb817cd5 100644
 --- a/net/minecraft/advancements/triggers/SimpleCriterionTrigger.java
 +++ b/net/minecraft/advancements/triggers/SimpleCriterionTrigger.java
-@@ -19,8 +19,14 @@ public abstract class SimpleCriterionTrigger<T extends SimpleCriterionTrigger.Si
-     protected void trigger(final ServerPlayer player, final Predicate<T> matcher) {
-         if (player.level().canvasConfig().disableCriterionTrigger) return; // Canvas - disable criterion trigger config
+@@ -21,6 +21,12 @@ public abstract class SimpleCriterionTrigger<T extends SimpleCriterionTrigger.Si
          ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(player, "Cannot trigger criterion async"); // Canvas - region threading
          PlayerAdvancements advancements = player.getAdvancements();
          Map<PlayerAdvancements.TriggerInstanceKey, T> listenersForType = advancements.getTriggerMapForType(this);

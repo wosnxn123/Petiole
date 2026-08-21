@@ -8,10 +8,10 @@ Original author: Martijn Muijsers.
 Canvas adaptation: config gate mapped to logs.unrecognizedRecipes.
 
 diff --git a/net/minecraft/stats/ServerRecipeBook.java b/net/minecraft/stats/ServerRecipeBook.java
-index fdc180f4d68d4462516b24490f4db5e568ce7701..48b3731fe4d005ed4db94a85ff52b43dfd9f6792 100644
+index b4f2795b87e695b53901d5008307f1337a14a8f4..d512e81eecc44d810e8212bbed4c22452f49ad6b 100644
 --- a/net/minecraft/stats/ServerRecipeBook.java
 +++ b/net/minecraft/stats/ServerRecipeBook.java
-@@ -110,7 +110,7 @@ public class ServerRecipeBook extends RecipeBook {
+@@ -112,7 +112,7 @@ public class ServerRecipeBook extends RecipeBook {
      ) {
          for (ResourceKey<Recipe<?>> recipe : recipes) {
              if (!validator.test(recipe)) {

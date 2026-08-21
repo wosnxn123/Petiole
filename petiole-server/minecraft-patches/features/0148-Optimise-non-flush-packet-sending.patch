@@ -8,7 +8,7 @@ Original author: Spottedleaf.
 Canvas adaptation: config gate mapped to optimizations.nonFlushPacketSending.
 
 diff --git a/net/minecraft/network/Connection.java b/net/minecraft/network/Connection.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index a189f5d3ca1b2ba65c3520ab4f71c0415830dd0d..2db98b5a57a12aaa5439be69c5202edbdd400ff4 100644
 --- a/net/minecraft/network/Connection.java
 +++ b/net/minecraft/network/Connection.java
 @@ -128,6 +128,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
@@ -19,7 +19,7 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
  
      public Connection(final PacketFlow receiving) {
          this.receiving = receiving;
-@@ -137,6 +138,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+@@ -172,6 +173,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
      public void channelActive(final ChannelHandlerContext ctx) throws Exception {
          super.channelActive(ctx);
          this.channel = ctx.channel();
@@ -27,7 +27,7 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
          this.address = this.channel.remoteAddress();
          this.preparing = false; // Spigot
          if (this.delayedDisconnect != null) {
-@@ -487,6 +489,11 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+@@ -524,6 +526,11 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
          if (this.channel.eventLoop().inEventLoop()) {
              this.doSendPacket(packet, listener, flush);
          } else {

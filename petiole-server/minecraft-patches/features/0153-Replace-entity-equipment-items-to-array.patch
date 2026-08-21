@@ -8,10 +8,12 @@ Original author: Dreeam.
 Canvas adaptation: dependency inlined and context adjusted to Folia base - upstream builds on Leaf's "Lithium - equipment tracking" patch which we do not carry, so the hunks were rewritten against the vanilla EnumMap-based EntityEquipment (tracking-related lines dropped), the two lithium unsubscribe hunks were dropped entirely, and the minimal EquipmentSlot.VALUES_ARRAY field from Leaf's "Reduce array allocations" patch (Gale/JettPack) was inlined.
 
 diff --git a/net/minecraft/world/entity/EntityEquipment.java b/net/minecraft/world/entity/EntityEquipment.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index 20041325ae77f16a5b77f5de7255788b52ebb3a5..7bfc2e72c031d5ee3a16d98336e60f8601c9214e 100644
 --- a/net/minecraft/world/entity/EntityEquipment.java
 +++ b/net/minecraft/world/entity/EntityEquipment.java
-@@ -15,10 +15,27 @@ public class EntityEquipment {
+@@ -13,14 +13,31 @@ public class EntityEquipment {
+         map.putAll((Map<? extends EquipmentSlot, ? extends ItemStack>)items);
+         return new EntityEquipment(map);
      }, equipment -> {
 -        Map<EquipmentSlot, ItemStack> items = new EnumMap<>(equipment.items);
 -        items.values().removeIf(ItemStack::isEmpty);
@@ -43,8 +45,13 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
 +        this.items = self;
 +        // Leaf end - Replace entity equipment items to array
      }
-@@ -30,50 +47,58 @@ public class EntityEquipment {
+ 
+     public EntityEquipment() {
+@@ -28,15 +45,21 @@ public class EntityEquipment {
+     }
+ 
      public ItemStack set(final EquipmentSlot slot, final ItemStack itemStack) {
+-        return Objects.requireNonNullElse(this.items.put(slot, itemStack), ItemStack.EMPTY);
 +        // Leaf start - Replace entity equipment items to array
 +        final ItemStack[] items = this.items;
 +        final int slotIndex = slot.ordinal();
@@ -52,7 +59,6 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
 +        items[slotIndex] = itemStack == null ? ItemStack.EMPTY : itemStack;
 +        // Leaf end - Replace entity equipment items to array
 +        return oldStack;
--        return Objects.requireNonNullElse(this.items.put(slot, itemStack), ItemStack.EMPTY);
      }
  
      public ItemStack get(final EquipmentSlot slot) {
@@ -66,38 +72,29 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
              if (!item.isEmpty()) {
                  return false;
              }
-         }
- 
-         return true;
+@@ -46,21 +69,23 @@ public class EntityEquipment {
      }
  
--    public void tick(final Entity owner) {
+     public void tick(final Entity owner) {
 -        for (Entry<EquipmentSlot, ItemStack> entry : this.items.entrySet()) {
 -            ItemStack item = entry.getValue();
--            if (!item.isEmpty()) {
--                item.inventoryTick(owner.level(), owner, entry.getKey());
--            }
--        }
--    }
-+    public void tick(final Entity owner) {
 +        // Leaf start - Replace entity equipment items to array
 +        final ItemStack[] items = this.items;
 +        for (int i = 0; i < items.length; i++) {
 +            ItemStack item = items[i];
-+            if (!item.isEmpty()) {
+             if (!item.isEmpty()) {
+-                item.inventoryTick(owner.level(), owner, entry.getKey());
 +                item.inventoryTick(owner.level(), owner, EquipmentSlot.VALUES_ARRAY[i]);
-+            }
-+        }
+             }
+         }
 +        // Leaf end - Replace entity equipment items to array
-+    }
+     }
  
--    public void setAll(final EntityEquipment equipment) {
+     public void setAll(final EntityEquipment equipment) {
 -        this.items.clear();
 -        this.items.putAll(equipment.items);
--    }
-+    public void setAll(final EntityEquipment equipment) {
 +        System.arraycopy(equipment.items, 0, this.items, 0, this.items.length); // Leaf - Replace entity equipment items to array
-+    }
+     }
  
      public void dropAll(final LivingEntity dropper) {
 -        for (ItemStack item : this.items.values()) {
@@ -105,7 +102,7 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
              dropper.drop(item, true, false);
          }
  
-         this.clear();
+@@ -68,13 +93,13 @@ public class EntityEquipment {
      }
  
      public void clear() {
@@ -120,13 +117,16 @@ index 0000000000000000000000000000000000000000..00000000000000000000000000000000
 +        return this.items[slot.ordinal()] != ItemStack.EMPTY; // Leaf - Replace entity equipment items to array
      }
      // Paper end - EntityDeathEvent
+ }
 diff --git a/net/minecraft/world/entity/EquipmentSlot.java b/net/minecraft/world/entity/EquipmentSlot.java
-index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+index ffb5f07697e9f1fb07f83ea4739c6b9d5a622892..211c3db3dcf205628fac874e143f8882eebf5b07 100644
 --- a/net/minecraft/world/entity/EquipmentSlot.java
 +++ b/net/minecraft/world/entity/EquipmentSlot.java
-@@ -21,4 +21,5 @@ public enum EquipmentSlot implements StringRepresentable {
+@@ -20,6 +20,7 @@ public enum EquipmentSlot implements StringRepresentable {
+     SADDLE(EquipmentSlot.Type.SADDLE, 0, 1, 7, "saddle");
  
      public static final int NO_COUNT_LIMIT = 0;
 +    public static final EquipmentSlot[] VALUES_ARRAY = values(); // Leaf - Replace entity equipment items to array
      public static final List<EquipmentSlot> VALUES = List.of(values());
      public static final IntFunction<EquipmentSlot> BY_ID = ByIdMap.continuous(s -> s.id, values(), ByIdMap.OutOfBoundsStrategy.ZERO);
+     public static final StringRepresentable.EnumCodec<EquipmentSlot> CODEC = StringRepresentable.fromEnum(EquipmentSlot::values);

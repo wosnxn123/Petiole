@@ -8,10 +8,10 @@ Original author: Martijn Muijsers.
 Canvas adaptation: gale.log.warning.offline.mode system property mapped to logs.disableOfflineModeWarning (default true).
 
 diff --git a/net/minecraft/server/dedicated/DedicatedServer.java b/net/minecraft/server/dedicated/DedicatedServer.java
-index f83ed15b8559be420b4d7795b8c8e5333fbc37af..e2f995ebf2ba22ae480333769b69d1e5a9557651 100644
+index 0bfd331fc8c434f29bb817cab072eb2b60339d20..8f642d4b2ae2e9c3099ed407ba4b7a489ffe9787 100644
 --- a/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/net/minecraft/server/dedicated/DedicatedServer.java
-@@ -358,7 +358,7 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+@@ -317,7 +317,7 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
          String proxyFlavor = (io.papermc.paper.configuration.GlobalConfiguration.get().proxies.velocity.enabled) ? "Velocity" : "BungeeCord";
          String proxyLink = (io.papermc.paper.configuration.GlobalConfiguration.get().proxies.velocity.enabled) ? "https://docs.papermc.io/velocity/security" : "http://www.spigotmc.org/wiki/firewall-guide/";
          // Paper end - Add Velocity IP Forwarding Support
