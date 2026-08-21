@@ -32,6 +32,20 @@ jobs:
       - name: Apply patches
         run: ./gradlew applyAllPatches --no-configuration-cache --no-daemon
 
+      - name: Diagnose server repo patch state
+        run: |
+          nms=petiole-server/src/minecraft/java
+          if [ -d "$nms/.git" ]; then
+            echo "== last 15 commits (applied patches) =="
+            git -C "$nms" log --oneline -15 || true
+            echo "== patch-apply logs =="
+            tail -40 "$nms/.git/patch-apply-logs.log" 2>/dev/null || echo "no log file"
+            if [ -e "$nms/.git/patch-apply-failed" ]; then echo "FAILED MARKER PRESENT"; else echo "no failed marker"; fi
+          else
+            echo "no .git in $nms"
+            find petiole-server -maxdepth 3 -name ".git" -type d
+          fi
+
       - name: Locate and verify applied sources
         id: locate
         run: |
