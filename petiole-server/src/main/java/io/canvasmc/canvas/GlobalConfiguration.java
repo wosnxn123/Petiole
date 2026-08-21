@@ -949,17 +949,45 @@ public class GlobalConfiguration extends Part {
 
     public Logs logs = new Logs();
 
+    public Networking networking = new Networking();
+
+    public Optimizations optimizations = new Optimizations();
+
     public static class Logs extends Part {
 
         {
             option("enableLogCleaner").docs("Auto-removes old log files from the \"logs\" directory");
             option("cleanerTimeSpan").docs("The amount of the time since the log file was last edited until it will be deleted");
             option("logEnderPearlRewriteActions").docs("Logs when a pearl is saved or loaded from Petiole's pearl save rewrite");
+            option("invalidStatistics").docs(Style.wrap("Whether to log errors when a player's statistics file fails to parse."));
+            option("emptyMessageWarning").docs(Style.wrap("Whether to warn when a player tries to send an empty chat message."));
+            option("ignoredAdvancements").docs(Style.wrap("Whether to warn about advancements in player progress files that no longer exist."));
+            option("setBlockInFarChunk").docs(Style.wrap("Whether to log setBlock calls occurring in chunks far outside the world generation region."));
+            option("unrecognizedRecipes").docs(Style.wrap("Whether to log errors for unrecognized recipes removed while loading player recipe books."));
+            option("expiredMessageWarning").docs(Style.wrap("Whether to warn when a chat message with an expired timestamp is received (usually unsynchronized clocks)."));
+            option("notSecureMarker").docs(Style.wrap("Whether to append the 'Not Secure' marker when logging chat messages to the console."));
+            option("nullIdDisconnections").docs(Style.wrap("Whether to log login disconnections for connections whose authenticated profile has a null id (e.g. scanning bots)."));
+            option("disableRootWarning").docs(Style.wrap("Whether to suppress the warning shown when the server is running as root or administrator."));
+            option("disableOfflineModeWarning").docs(Style.wrap("Whether to suppress the warning shown when the server is running in offline/insecure mode."));
+            option("invalidLegacyTextComponent").docs(Style.wrap("If disabled, errors from legacy (pre-flattening) text components failing to parse during data conversion are no longer logged"));
+            option("playerLoginLocations").docs(Style.wrap("When enabled, the join message logs the player's login world and coordinates; when disabled, only the player name and entity id are logged"));
         }
 
         private boolean enableLogCleaner = false;
         private String cleanerTimeSpan = "30d";
         public boolean logEnderPearlRewriteActions = true;
+        public boolean invalidStatistics = true;
+        public boolean emptyMessageWarning = true;
+        public boolean ignoredAdvancements = true;
+        public boolean setBlockInFarChunk = true;
+        public boolean unrecognizedRecipes = true;
+        public boolean expiredMessageWarning = true;
+        public boolean notSecureMarker = true;
+        public boolean nullIdDisconnections = true;
+        public boolean disableRootWarning = true;
+        public boolean disableOfflineModeWarning = true;
+        public boolean invalidLegacyTextComponent = true;
+        public boolean playerLoginLocations = true;
     }
 
     public EnchantCommand enchantCommand = new EnchantCommand();
@@ -1010,4 +1038,25 @@ public class GlobalConfiguration extends Part {
         public boolean autosaveGamerules = true;
         public boolean autosavePlayers = true;
     }
+
+    public static class Networking extends Part {
+
+        {
+            option("premiumAccountSlowLoginTimeout").docs(Style.wrap("How many ticks a player may spend in the login sequence before being disconnected with a slow login kick; values below 1 fall back to the vanilla timeout of 600 ticks"));
+        }
+        public int premiumAccountSlowLoginTimeout = 600;
+
+    }
+
+    public static class Optimizations extends Part {
+
+        {
+            option("nonFlushPacketSending").docs(Style.wrap("Use netty lazyExecute for non-flush packet sends to avoid expensive event-loop wakeup calls (entity tracking heavy user)."));
+        }
+        public boolean nonFlushPacketSending = true;
+
+    }
+
+
+
 }
