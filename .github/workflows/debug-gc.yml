@@ -22,6 +22,16 @@ jobs:
           distribution: 'temurin'
           java-version: '25'
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            .gradle/caches
+            petiole-server/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
       - name: Apply patches (tolerate failure)
         run: ./gradlew applyAllPatches --no-configuration-cache || true
 
