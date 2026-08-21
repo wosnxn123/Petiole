@@ -1,7 +1,9 @@
 name: Debug GC dump
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - 'debug/gc-dump'
 
 jobs:
   dump:
