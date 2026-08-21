@@ -8,10 +8,10 @@ default true matching upstream), vanillaFixes.doNotCompetePOIIfUnloaded (Lophine
 0009, default false matching upstream) and vanillaFixes.mc238526 (Leaf 0039,
 default false per fork convention).
 
-diff --git a/petiole-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java b/petiole-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java
+diff --git a/io/canvasmc/canvas/GlobalConfiguration.java b/io/canvasmc/canvas/GlobalConfiguration.java
 index 8ef7676edf54f7ee32de88a66666af15549a1597..4f01993e5ecf8db75fcbff49bcd00a69aa1e9244 100644
---- a/petiole-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java
-+++ b/petiole-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java
+--- a/io/canvasmc/canvas/GlobalConfiguration.java
++++ b/io/canvasmc/canvas/GlobalConfiguration.java
 @@ -483,6 +483,9 @@ public class GlobalConfiguration extends Part {
              option("mc30391").docs("Fixes chickens, blazes and withers emitting particles during landing despite falling slowly");
              option("mc183990").docs("Fixes group AI of some mobs breaking when their target dies");
