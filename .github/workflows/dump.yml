@@ -32,6 +32,27 @@ jobs:
       - name: Apply patches
         run: ./gradlew applyAllPatches --no-configuration-cache --no-daemon
 
+      - name: Manually apply new feature patches (weaver skips them - investigating)
+        run: |
+          nms=petiole-server/src/minecraft/java
+          cd "$nms"
+          for p in "$GITHUB_WORKSPACE"/petiole-server/minecraft-patches/features/01[4-7]*.patch; do
+            subj=$(grep -m1 "^Subject:" "$p" | sed 's/Subject: \[PATCH\] //')
+            if git log --format="%s" | grep -qxF "$subj"; then
+              echo "already applied: $subj"
+              continue
+            fi
+            if git am -q --3way --ignore-whitespace "$p"; then
+              count=$((count+1))
+            else
+              echo "::warning::am failed: $(basename "$p")"
+              git am --abort
+            fi
+          done
+          echo "manually applied: $count"
+          cd - >/dev/null
+
+
       - name: Diagnose server repo patch state
         run: |
           nms=petiole-server/src/minecraft/java
