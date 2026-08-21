@@ -257,7 +257,7 @@ public class GlobalConfiguration extends Part {
                 // RegionDataCommand.class // TODO - regiondata command
             );
 
-            broadcast("Registered all Canvas commands", INFO);
+            broadcast("Registered all Petiole commands", INFO);
         }
 
         // we do not want to allow larger unit values, nobody should autosave in units larger than
