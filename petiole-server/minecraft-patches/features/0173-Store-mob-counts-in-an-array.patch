@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: violetc <58360096+s-yh-china@users.noreply.github.com>
+Date: Tue, 18 Jul 2023 14:54:36 +0800
+Subject: [PATCH] Store mob counts in an array
+
+Ported from LeavesMC/Leaves master (0059-Store-mob-counts-in-an-array.patch), GPL-3.0.
+Original author: violetc.
+Canvas adaptation: upstream LeavesConfig.performance.storeMobCountsInArray gate (upstream default true) dropped; optimized array path ported unconditionally and the now-dead Object2IntMap counts field removed (its fastutil imports in the file become unused but harmless).
+
+diff --git a/net/minecraft/world/level/LocalMobCapCalculator.java b/net/minecraft/world/level/LocalMobCapCalculator.java
+index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+--- a/net/minecraft/world/level/LocalMobCapCalculator.java
++++ b/net/minecraft/world/level/LocalMobCapCalculator.java
+@@ -43,13 +43,13 @@
+ 
+     private static class MobCounts {
+-        private final Object2IntMap<MobCategory> counts = new Object2IntOpenHashMap<>(MobCategory.values().length);
++        public final int[] arrCounts = new int[MobCategory.values().length]; // Leaves - store mob counts in an array
+ 
+         public void add(final MobCategory category) {
+-            this.counts.computeInt(category, (k, count) -> count == null ? 1 : count + 1);
++            this.arrCounts[category.ordinal()]++; // Leaves - store mob counts in an array
+         }
+ 
+         public boolean canSpawn(final MobCategory category) {
+-            return this.counts.getOrDefault(category, 0) < category.getMaxInstancesPerChunk();
++            return this.arrCounts[category.ordinal()] < category.getMaxInstancesPerChunk(); // Leaves - store mob counts in an array
+         }
+     }
+ }

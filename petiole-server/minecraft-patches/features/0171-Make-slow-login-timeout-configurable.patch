@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Sat, 24 Dec 2022 22:50:13 +0100
+Subject: [PATCH] Make slow login timeout configurable
+
+Ported from Winds-Studio/Leaf ver/26.2 (0064-Make-slow-login-timeout-configurable.patch), GPL-3.0-only.
+Original author: Martijn Muijsers (Gale).
+Canvas adaptation: Gale misc.premiumAccountSlowLoginTimeout mapped to Canvas networking.premiumAccountSlowLoginTimeout (int; Canvas default 600, upstream Gale default -1 which falls back to the same vanilla 600 via the < 1 guard); hunk line numbers shifted +6 for the Folia region-threading login rewrite.
+
+diff --git a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+index d59c600c92845b4fd21f3b209273f80cba16738e..00283b8dc9f9c4c6241c010c5afb819de6b3f9c6 100644
+--- a/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+@@ -111,7 +111,10 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
+     }
+     public void tickTimeout() {
+     // Paper end - login cookie API
+-        if (this.tick++ == 600) {
++        // Gale start - make slow login timeout configurable
++        int slowLoginTimeout = io.canvasmc.canvas.GlobalConfiguration.getInstance().networking.premiumAccountSlowLoginTimeout;
++        if (this.tick++ >= (slowLoginTimeout < 1 ? MAX_TICKS_BEFORE_LOGIN : slowLoginTimeout)) {
++            // Gale end - make slow login timeout configurable
+             this.disconnectAsync(Component.translatable("multiplayer.disconnect.slow_login")); // Paper
+         }
+     }

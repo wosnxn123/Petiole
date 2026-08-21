@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Fri, 25 Nov 2022 13:28:38 +0100
+Subject: [PATCH] Do not log setBlock in far chunks
+
+Ported from Winds-Studio/Leaf ver/26.2 (0030-Do-not-log-setBlock-in-far-chunks.patch), GPL-3.0-only.
+Original author: Martijn Muijsers.
+Canvas adaptation: config gate mapped to logs.setBlockInFarChunk.
+
+diff --git a/net/minecraft/server/level/WorldGenRegion.java b/net/minecraft/server/level/WorldGenRegion.java
+index ebb0923b38a7529e7df531b3947a0421df29d654..015539951e2a6af0e7b50c05512d1f6200ef2797 100644
+--- a/net/minecraft/server/level/WorldGenRegion.java
++++ b/net/minecraft/server/level/WorldGenRegion.java
+@@ -327,7 +327,7 @@ public class WorldGenRegion implements WorldGenLevel {
+             int chunkX = SectionPos.blockToSectionCoord(pos.getX());
+             int chunkZ = SectionPos.blockToSectionCoord(pos.getZ());
+             // Paper start - Buffer OOB setBlock calls
+-            if (!hasSetFarWarned) {
++            if (io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.setBlockInFarChunk && !hasSetFarWarned) { // Canvas - do not log setBlock in far chunks
+             Util.logAndPauseIfInIde(
+                 "Detected setBlock in a far chunk ["
+                     + chunkX

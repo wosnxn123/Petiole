@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Fri, 25 Nov 2022 15:13:38 +0100
+Subject: [PATCH] Do not log Not Secure marker
+
+Ported from Winds-Studio/Leaf ver/26.2 (0033-Do-not-log-Not-Secure-marker.patch), GPL-3.0-only.
+Original author: Martijn Muijsers.
+Canvas adaptation: config gate mapped to logs.notSecureMarker.
+
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index 062117904e5ff2809e5ce9f2becacab302b57082..fd59a49fccf24a68e01e12326436c48c5b5189a5 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -1173,7 +1173,7 @@ public abstract class PlayerList {
+     public void broadcastChatMessage(final PlayerChatMessage message, final Predicate<ServerPlayer> isFiltered, final @Nullable ServerPlayer senderPlayer, final ChatType.Bound chatType, final @Nullable Function<net.kyori.adventure.audience.Audience, Component> unsignedFunction) {
+         // Paper end
+         boolean trusted = this.verifyChatTrusted(message);
+-        this.server.logChatMessage((unsignedFunction == null ? message.decoratedContent() : unsignedFunction.apply(this.server.console)), chatType, trusted ? null : "Not Secure"); // Paper
++        this.server.logChatMessage((unsignedFunction == null ? message.decoratedContent() : unsignedFunction.apply(this.server.console)), chatType, trusted || !io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.notSecureMarker ? null : "Not Secure"); // Paper // Canvas - do not log Not Secure marker
+         OutgoingChatMessage tracked = OutgoingChatMessage.create(message);
+         boolean wasFullyFiltered = false;
+ 

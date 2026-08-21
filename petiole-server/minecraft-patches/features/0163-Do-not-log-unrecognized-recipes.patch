@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Fri, 25 Nov 2022 15:01:30 +0100
+Subject: [PATCH] Do not log unrecognized recipes
+
+Ported from Winds-Studio/Leaf ver/26.2 (0031-Do-not-log-unrecognized-recipes.patch), GPL-3.0-only.
+Original author: Martijn Muijsers.
+Canvas adaptation: config gate mapped to logs.unrecognizedRecipes.
+
+diff --git a/net/minecraft/stats/ServerRecipeBook.java b/net/minecraft/stats/ServerRecipeBook.java
+index fdc180f4d68d4462516b24490f4db5e568ce7701..48b3731fe4d005ed4db94a85ff52b43dfd9f6792 100644
+--- a/net/minecraft/stats/ServerRecipeBook.java
++++ b/net/minecraft/stats/ServerRecipeBook.java
+@@ -110,7 +110,7 @@ public class ServerRecipeBook extends RecipeBook {
+     ) {
+         for (ResourceKey<Recipe<?>> recipe : recipes) {
+             if (!validator.test(recipe)) {
+-                LOGGER.error("Tried to load unrecognized recipe: {} removed now.", recipe);
++                if (io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.unrecognizedRecipes) LOGGER.error("Tried to load unrecognized recipe: {} removed now.", recipe); // Canvas - do not log unrecognized recipes
+             } else {
+                 recipeAddingMethod.accept(recipe);
+             }

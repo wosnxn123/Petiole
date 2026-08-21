@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dreeam <61569423+Dreeam-qwq@users.noreply.github.com>
+Date: Fri, 6 Jun 2025 05:44:21 +0800
+Subject: [PATCH] Do not log invalid flatten text component parse
+
+Ported from Winds-Studio/Leaf ver/26.2 (0037-Do-not-log-invalid-flatten-text-component-parse.patch), GPL-3.0-only.
+Original author: Dreeam.
+Canvas adaptation: Gale logToConsole.invalidLegacyTextComponent config gate mapped to Canvas logs.invalidLegacyTextComponent.
+
+diff --git a/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java b/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java
+index 44e74a97debbb36deb50a1f726ee25cc5272ab09..e1b2447e3a8655b79deaef0163159e9681acb9a7 100644
+--- a/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java
++++ b/ca/spottedleaf/dataconverter/minecraft/versions/V4290.java
+@@ -254,7 +254,7 @@ public final class V4290 {
+                         return ret;
+                     }
+                 } catch (final JsonParseException ex) {
+-                    LOGGER.error("Failed to convert json to nbt: " + unparsedJson, ex);
++                    if (io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.invalidLegacyTextComponent) LOGGER.error("Failed to convert json to nbt: " + unparsedJson, ex); // Leaf - Do not log invalid flatten text component parse
+                 }
+ 
+                 return null;

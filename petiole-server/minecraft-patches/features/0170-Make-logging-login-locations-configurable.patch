@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Mon, 26 Dec 2022 00:17:40 +0100
+Subject: [PATCH] Make logging login locations configurable
+
+Ported from Winds-Studio/Leaf ver/26.2 (0041-Make-logging-login-locations-configurable.patch), GPL-3.0-only.
+Original author: Martijn Muijsers (Gale; based on JettPack by Simon Gardling).
+Canvas adaptation: Gale logToConsole.playerLoginLocations config gate mapped to Canvas logs.playerLoginLocations (Gale default true kept); Purpur BossBarTask context line dropped for the Folia base, hunk line numbers shifted by one accordingly.
+
+diff --git a/net/minecraft/server/players/PlayerList.java b/net/minecraft/server/players/PlayerList.java
+index 3da54c71d72a5403302643a141b3d7d78fda4ee3..d34ed8b9f7ec0cf39fabe2f128c0db0070db44ab 100644
+--- a/net/minecraft/server/players/PlayerList.java
++++ b/net/minecraft/server/players/PlayerList.java
+@@ -315,5 +315,6 @@ public abstract class PlayerList {
+         }
+         // Paper end - Configurable player collision
++        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.playerLoginLocations) { // Gale - JettPack - make logging login location configurable
+         // CraftBukkit start - moved down
+         LOGGER.info(
+             "{}[{}] logged in with entity id {} at ([{}]{}, {}, {})", // Paper - add world identifier
+@@ -327,6 +327,16 @@ public abstract class PlayerList {
+             player.getZ()
+         );
+         // CraftBukkit end - moved down
++            // Gale start - JettPack - make logging login location configurable
++        } else {
++            LOGGER.info(
++                    "{}[{}] logged in with entity id {}", // CraftBukkit - add world name
++                    player.getPlainTextName(),
++                    address,
++                    player.getId()
++            );
++        }
++            // Gale end - JettPack - make logging login location configurable
+         // Paper start - Send empty chunk, so players aren't stuck in the world loading screen with our chunk system not sending chunks when dead
+         if (player.isDeadOrDying()) {
+             net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> plains = level.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME)

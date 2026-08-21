@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Thu, 24 Nov 2022 23:45:57 +0100
+Subject: [PATCH] Do not log empty message warnings
+
+Ported from Winds-Studio/Leaf ver/26.2 (0028-Do-not-log-empty-message-warnings.patch), GPL-3.0-only.
+Original author: Martijn Muijsers.
+Canvas adaptation: config gate mapped to logs.emptyMessageWarning (upstream Gale logToConsole.chat.emptyMessageWarning).
+
+diff --git a/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 3cb8538b68429615a6f2ceea3a38d056153988c9..bfe02e01a41e05502bb09155d77dbb780443e751 100644
+--- a/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -2748,7 +2748,7 @@ public class ServerGamePacketListenerImpl
+         // CraftBukkit start
+         String rawMessage = message.signedContent();
+         if (rawMessage.isEmpty()) {
+-            LOGGER.warn("{} tried to send an empty message", this.player.getScoreboardName());
++            if (io.canvasmc.canvas.GlobalConfiguration.getInstance().logs.emptyMessageWarning) LOGGER.warn("{} tried to send an empty message", this.player.getScoreboardName()); // Canvas - do not log empty message warnings
+         } else if (this.getCraftPlayer().isConversing()) {
+             if (true) throw new UnsupportedOperationException("Unsupported in region threading"); // Folia - region threading
+             final String conversationInput = rawMessage;

@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: hayanesuru <hayanesuru@outlook.jp>
+Date: Sat, 30 Aug 2025 20:31:35 +0900
+Subject: [PATCH] Only update frozen ticks if changed
+
+Ported from Winds-Studio/Leaf ver/26.2 (0271-Only-update-frozen-ticks-if-changed.patch), GPL-3.0-only.
+Original author: hayanesuru.
+Canvas adaptation: context adjusted to Folia base - the profiler.push("freezing") line referenced by the upstream hunk context does not exist in the Folia base and was dropped from the context.
+
+diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
+index 0000000000000000000000000000000000000000..0000000000000000000000000000000000000000 100644
+--- a/net/minecraft/world/entity/LivingEntity.java
++++ b/net/minecraft/world/entity/LivingEntity.java
+@@ -3852,6 +3852,12 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+         if (this.level() instanceof ServerLevel serverLevel) {
+             if ((!this.isInPowderSnow || !this.canFreeze()) && !this.freezeLocked) { // Paper - Freeze Tick Lock API
+-                this.setTicksFrozen(Math.max(0, this.getTicksFrozen() - 2));
++                // Leaf start - Only update frozen ticks if changed
++                int ticksFrozen = this.getTicksFrozen();
++                int newTicksFrozen = Math.max(0, ticksFrozen - 2);
++                if (ticksFrozen != newTicksFrozen) {
++                    this.setTicksFrozen(newTicksFrozen);
++                }
++                // Leaf end - Only update frozen ticks if changed
+             }
+ 
+             this.removeFrost();
