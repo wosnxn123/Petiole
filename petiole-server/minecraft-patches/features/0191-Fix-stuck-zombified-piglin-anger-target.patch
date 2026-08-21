@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: HyacinthHaru <122684177+HyacinthHaru@users.noreply.github.com>
+Date: Tue, 28 Apr 2026 18:50:00 +0800
+Subject: [PATCH] Fix stuck zombified piglin anger target
+
+Ported from LeavesMC/Leaves master (0141-Fix-stuck-zombified-piglin-anger-target.patch), GPL-3.0-only.
+Original author: HyacinthHaru.
+Canvas adaptation: upstream's LeavesConfig.modify.fixStuckZombifiedPiglinAngerTarget gate is dropped pending config wiring - key reported for mainline enablement; anchor context parameter name is stayAngryIfTargetPresent in our tree
+
+diff --git a/net/minecraft/world/entity/NeutralMob.java b/net/minecraft/world/entity/NeutralMob.java
+index 3425ac4f186f144527e612bc895457ba4cd3ff93..95663c958a206a8837638bc7f350bb1426ce743e 100644
+--- a/net/minecraft/world/entity/NeutralMob.java
++++ b/net/minecraft/world/entity/NeutralMob.java
+@@ -85,6 +85,21 @@ public interface NeutralMob {
+                 this.stopBeingAngry();
+             }
+ 
++            // Leaves start - fix stuck zombified piglin anger target
++            if (this.isAngry()) {
++                if (target instanceof Player && !isValidPlayerTarget(target)) {
++                    boolean shouldStop = true;
++                    if (persistentAngerTarget != null) {
++                        LivingEntity resolved = EntityReference.getLivingEntity(persistentAngerTarget, level);
++                        shouldStop = resolved instanceof Player && !isValidPlayerTarget(resolved);
++                    }
++                    if (shouldStop) {
++                        this.stopBeingAngry();
++                    }
++                }
++            }
++            // Leaves end - fix stuck zombified piglin anger target
++
+             if (EntityReference.getLivingEntity(persistentAngerTarget, level) instanceof Player player
+                 && (player.isCreative() || player.isSpectator() || level.getDifficulty() == Difficulty.PEACEFUL)) {
+                 this.stopBeingAngry();

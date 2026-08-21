@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MC_XiaoHei <xor7xiaohei@gmail.com>
+Date: Sat, 5 Jul 2025 09:48:47 +0800
+Subject: [PATCH] Fix block place desync due to update suppression
+
+Ported from LeavesMC/Leaves master (0128-Fix-block-place-desync-due-to-update-suppression.patch), GPL-3.0-only.
+Original author: MC_XiaoHei.
+Canvas adaptation: uses our io.canvasmc.canvas.util.UpdateSuppressionException (no org.leavesmc.leaves package) with the same provideBlock/providePlayer contract; variable names adapted to our useOn locals (result/pos/level instead of interactionResult/clickedPos/serverLevel); rethrow placed before `return result;` after CraftBukkit block-place event processing so captured states still become events; coexists with our existing catchUpdateSuppression/cceUpdateSuppression/item-drop protection patches - downstream consumers (ServerPlayer.tick / MinecraftServer) already handle the rethrown exception
+
+diff --git a/net/minecraft/world/item/ItemStack.java b/net/minecraft/world/item/ItemStack.java
+index 5e5fafb906931ea5d220c0cb0c045c7ff69f32ce..6a3ff11bbf3e781929c6a868ccc634ed167f6658 100644
+--- a/net/minecraft/world/item/ItemStack.java
++++ b/net/minecraft/world/item/ItemStack.java
+@@ -392,8 +392,18 @@ public final class ItemStack implements DataComponentHolder, ItemInstance {
+         List<net.minecraft.world.level.block.entity.BlockEntity> capturedBlockEntities;
+         org.bukkit.TreeType treeType;
+         InteractionResult result;
++        // Leaves start - fix block place desync due to update suppression
++        io.canvasmc.canvas.util.UpdateSuppressionException ue = null;
+         try {
+             result = usedItem.useOn(context);
++        } catch (io.canvasmc.canvas.util.UpdateSuppressionException ex) {
++            result = net.minecraft.world.InteractionResult.SUCCESS.configurePaper(e -> e.placedBlockAt(pos.immutable()));
++            ue = ex;
++            ue.provideBlock(context.getLevel(), context.getClickedPos(), level.getBlockState(context.getClickedPos()).getBlock());
++            if (player != null) {
++                ue.providePlayer((net.minecraft.server.level.ServerPlayer) player);
++            }
++        // Leaves end - fix block place desync due to update suppression
+         } finally {
+             worldData.captureBlockStates = false; // Folia - region threading
+             worldData.captureTreeGeneration = false; // Folia - region threading
+@@ -510,6 +520,7 @@ public final class ItemStack implements DataComponentHolder, ItemInstance {
+         }
+         // CraftBukkit end
+ 
++        if (ue != null) throw ue; // Leaves - fix block place desync due to update suppression
+         return result;
+     }
+ 

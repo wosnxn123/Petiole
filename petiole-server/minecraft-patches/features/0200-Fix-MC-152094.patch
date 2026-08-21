@@ -1,0 +1,127 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: HaHaWTH <102713261+HaHaWTH@users.noreply.github.com>
+Date: Tue, 9 Nov 2077 00:00:00 +0800
+Subject: [PATCH] Fix MC-152094
+
+Ported from Winds-Studio/Leaf ver/26.2 (0154-Fix-MC-152094.patch), GPL-3.0-only.
+Original author: HaHaWTH.
+Canvas adaptation: Leaf config gate removed - fix applied unconditionally; config key mc152094 reported for mainline wiring. org.dreeam.leaf.util.ReferenceBounds and MCBugFix.LOGGER absent from Canvas base - ReferenceBounds record inlined as private nested record with FQN SectionPos calls; private LOGGER added.
+
+diff --git a/net/minecraft/world/level/levelgen/structure/structures/EndCityPieces.java b/net/minecraft/world/level/levelgen/structure/structures/EndCityPieces.java
+index 855b9326f4e98a8b3b0f1e7f217401ccdbcaea96..765483013eee5496130067b15d087ea4c03103f6 100644
+--- a/net/minecraft/world/level/levelgen/structure/structures/EndCityPieces.java
++++ b/net/minecraft/world/level/levelgen/structure/structures/EndCityPieces.java
+@@ -206,12 +206,18 @@ public class EndCityPieces {
+             }
+ 
+             if (!this.shipCreated && random.nextInt(10 - genDepth) == 0) {
+-                EndCityPieces.addHelper(
++                // Canvas start - Fix MC-152094
++                addShipWithinReferenceBounds(
++                    structureTemplateManager,
++                    lastPiece,
++                    -8 + random.nextInt(8),
++                    nextY,
++                    -70 + random.nextInt(10),
++                    rotation,
+                     pieces,
+-                    EndCityPieces.addPiece(
+-                        structureTemplateManager, lastPiece, new BlockPos(-8 + random.nextInt(8), nextY, -70 + random.nextInt(10)), "ship", rotation, true
+-                    )
++                    REFERENCE_BOUNDS.get()
+                 );
++                // Canvas end - Fix MC-152094
+                 this.shipCreated = true;
+             } else if (!EndCityPieces.recursiveChildren(
+                 structureTemplateManager, EndCityPieces.HOUSE_TOWER_GENERATOR, genDepth + 1, lastPiece, new BlockPos(-3, nextY + 1, -11), pieces, random
+@@ -315,7 +321,14 @@ public class EndCityPieces {
+         lastPiece = addHelper(pieces, addPiece(structureTemplateManager, lastPiece, new BlockPos(-1, 0, -1), "second_floor_1", rotation, false));
+         lastPiece = addHelper(pieces, addPiece(structureTemplateManager, lastPiece, new BlockPos(-1, 4, -1), "third_floor_1", rotation, false));
+         lastPiece = addHelper(pieces, addPiece(structureTemplateManager, lastPiece, new BlockPos(-1, 8, -1), "third_roof", rotation, true));
+-        recursiveChildren(structureTemplateManager, TOWER_GENERATOR, 1, lastPiece, null, pieces, random);
++        // Canvas start - Fix MC-152094
++        try {
++            REFERENCE_BOUNDS.set(ReferenceBounds.around(origin));
++            recursiveChildren(structureTemplateManager, TOWER_GENERATOR, 1, lastPiece, null, pieces, random);
++        } finally {
++            REFERENCE_BOUNDS.remove();
++        }
++        // Canvas end - Fix MC-152094
+     }
+ 
+     private static EndCityPieces.EndCityPiece addHelper(final List<StructurePiece> pieces, final EndCityPieces.EndCityPiece piece) {
+@@ -323,6 +336,74 @@ public class EndCityPieces {
+         return piece;
+     }
+ 
++    private static final ThreadLocal<@org.jspecify.annotations.Nullable ReferenceBounds> REFERENCE_BOUNDS = new ThreadLocal<>(); // Canvas - Fix MC-152094
++
++    private static void addShipWithinReferenceBounds( // Canvas start - Fix MC-152094
++        final StructureTemplateManager structureTemplateManager,
++        final EndCityPieces.EndCityPiece parent,
++        final int localX,
++        final int localY,
++        final int requestedLocalZ,
++        final Rotation rotation,
++        final List<StructurePiece> pieces,
++        final @org.jspecify.annotations.Nullable ReferenceBounds referenceBounds
++    ) {
++        java.util.Objects.requireNonNull(referenceBounds); // Throw NPE if related vanilla logic changes in future Minecraft versions
++
++        for (int localZ = requestedLocalZ; localZ <= 0; localZ++) {
++            EndCityPieces.EndCityPiece ship = EndCityPieces.addPiece(
++                structureTemplateManager,
++                parent,
++                new BlockPos(localX, localY, localZ),
++                "ship",
++                rotation,
++                true
++            );
++
++            if (
++                referenceBounds.contains(ship.getBoundingBox())
++                    && StructurePiece.findCollisionPiece(pieces, ship.getBoundingBox()) == null
++            ) {
++                EndCityPieces.addHelper(pieces, ship);
++                return;
++            }
++        }
++        LOGGER.warn("Unable to find a valid ship position, end ship will continue to generate anyway.");
++        EndCityPieces.addPiece(
++            structureTemplateManager,
++            parent,
++            new BlockPos(localX, localY, requestedLocalZ),
++            "ship",
++            rotation,
++            true
++        );
++    }
++
++    private record ReferenceBounds(int minX, int maxX, int minZ, int maxZ) {
++
++        private static ReferenceBounds around(final BlockPos startPos) {
++            int startChunkX = net.minecraft.core.SectionPos.blockToSectionCoord(startPos.getX());
++            int startChunkZ = net.minecraft.core.SectionPos.blockToSectionCoord(startPos.getZ());
++            int radius = 8; // ChunkStatus#MAX_STRUCTURE_DISTANCE
++
++            return new ReferenceBounds(
++                net.minecraft.core.SectionPos.sectionToBlockCoord(startChunkX - radius),
++                net.minecraft.core.SectionPos.sectionToBlockCoord(startChunkX + radius, 15),
++                net.minecraft.core.SectionPos.sectionToBlockCoord(startChunkZ - radius),
++                net.minecraft.core.SectionPos.sectionToBlockCoord(startChunkZ + radius, 15)
++            );
++        }
++
++        private boolean contains(final BoundingBox box) {
++            return box.minX() >= this.minX
++                && box.maxX() <= this.maxX
++                && box.minZ() >= this.minZ
++                && box.maxZ() <= this.maxZ;
++        }
++    }
++
++    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger(); // Canvas - Fix MC-152094
++
+     private static boolean recursiveChildren(
+         final StructureTemplateManager structureTemplateManager,
+         final EndCityPieces.SectionGenerator generator,

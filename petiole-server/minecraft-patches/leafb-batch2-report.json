@@ -1,0 +1,58 @@
+{
+  "batch": "leafb-batch2",
+  "fork": "petiole-server (Canvas/Folia 26.2)",
+  "upstream": "Winds-Studio/Leaf ver/26.2",
+  "output_dir": "D:/1/MC/Canvas/petiole-server/minecraft-patches/features/",
+  "validation_tree": "D:/tmp/b2-check-leafb",
+  "all_validated": true,
+  "patches": [
+    {
+      "file": "0198-Fix-MC-270656.patch",
+      "upstream_file": "0151-Fix-MC-270656.patch",
+      "author": "HaHaWTH <102713261+HaHaWTH@users.noreply.github.com>",
+      "license": "GPL-3.0-only",
+      "config_keys": ["mc270656"],
+      "adaptation": "Leaf config gate removed - fix applied unconditionally; config key mc270656 reported for mainline wiring. Field reference currentImpulseImpactPos adapted to Canvas baseline name currentExplosionImpactPos.",
+      "targets": ["net/minecraft/server/level/ServerPlayer.java"]
+    },
+    {
+      "file": "0199-Fix-MC-299642.patch",
+      "upstream_file": "0153-Fix-MC-299642.patch",
+      "author": "HaHaWTH <102713261+HaHaWTH@users.noreply.github.com>",
+      "license": "GPL-3.0-only",
+      "config_keys": ["mc299642"],
+      "adaptation": "Leaf config gate removed - fix applied unconditionally; config key mc299642 reported for mainline wiring. Uses baseline this.speedModifier instead of upstream getSpeedModifier() (no Purpur ridables in Canvas).",
+      "targets": ["net/minecraft/world/entity/animal/turtle/Turtle.java"]
+    },
+    {
+      "file": "0200-Fix-MC-152094.patch",
+      "upstream_file": "0154-Fix-MC-152094.patch",
+      "author": "HaHaWTH <102713261+HaHaWTH@users.noreply.github.com>",
+      "license": "GPL-3.0-only",
+      "config_keys": ["mc152094"],
+      "adaptation": "Leaf config gate removed - fix applied unconditionally; config key mc152094 reported for mainline wiring. org.dreeam.leaf.util.ReferenceBounds and MCBugFix.LOGGER absent from Canvas base - ReferenceBounds record inlined as private nested record with FQN SectionPos calls; private LOGGER added.",
+      "targets": ["net/minecraft/world/level/levelgen/structure/structures/EndCityPieces.java"]
+    },
+    {
+      "file": "0201-Fix-crash-during-parsing-unknown-command-message.patch",
+      "upstream_file": "0232-Fix-crash-during-parsing-unknown-command-message.patch",
+      "author": "Dreeam <61569423+Dreeam-qwq@users.noreply.github.com>",
+      "license": "GPL-3.0-only",
+      "config_keys": [],
+      "adaptation": "Upstream Leaves touches two helper methods (getVanillaUnknownCommandMessage/detailComponent); Canvas baseline has a single finishParsing catch block - both fixes applied there. Message deserialization routed through ComponentUtils.fromMessage + PaperAdventure.asAdventure and context substrings wrapped with StringUtil.filterText.",
+      "targets": ["net/minecraft/commands/Commands.java"]
+    },
+    {
+      "file": "0202-fix-skeleton-horse-trap-NPE.patch",
+      "upstream_file": "0299-fix-skeleton-horse-trap-NPE.patch",
+      "author": "hayanesuru <hayanesuru@outlook.jp>",
+      "license": "GPL-3.0-only",
+      "config_keys": [],
+      "adaptation": "Direct port - goal no longer removed from selector (prevents NPE when trap goal ticks after removal); doTrap flag gates canUse and stop() clears eligiblePlayers.",
+      "targets": [
+        "net/minecraft/world/entity/animal/equine/SkeletonHorse.java",
+        "net/minecraft/world/entity/animal/equine/SkeletonTrapGoal.java"
+      ]
+    }
+  ]
+}

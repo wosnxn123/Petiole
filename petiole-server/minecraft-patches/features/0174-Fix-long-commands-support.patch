@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Helvetica Volubi <suisuroru@blue-millennium.fun>
+Date: Thu, 2 Apr 2026 12:26:24 +0800
+Subject: [PATCH] Fix long commands support
+
+Ported from LophineLabs/Lophine master (0015-Fix-long-commands-support.patch), GPL-3.0 (Lophine repository; MIT opt-in personal, not transitive).
+Original author: Helvetica Volubi.
+Canvas adaptation: Luminol LongCommandSupportConfig.enabled gate mapped to Canvas vanillaFixes.longCommandSupport (boolean; default true matching upstream).
+
+diff --git a/net/minecraft/network/protocol/game/ServerboundChatCommandPacket.java b/net/minecraft/network/protocol/game/ServerboundChatCommandPacket.java
+index 491af2413a4e793a121fec368259ff8211ed031e..e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9 100644
+--- a/net/minecraft/network/protocol/game/ServerboundChatCommandPacket.java
++++ b/net/minecraft/network/protocol/game/ServerboundChatCommandPacket.java
+@@ -12,7 +12,7 @@ public record ServerboundChatCommandPacket(String command) implements Packet<Ser
+     );
+
+     private ServerboundChatCommandPacket(final FriendlyByteBuf input) {
+-        this(input.readUtf(MAX_CHAT_PACKET_INPUT_SIZE)); // Paper - limit chat command inputs
++        this(io.canvasmc.canvas.GlobalConfiguration.getInstance().vanillaFixes.longCommandSupport ? input.readUtf() : input.readUtf(MAX_CHAT_PACKET_INPUT_SIZE)); // Paper - limit chat command inputs // Luminol - add support for long command inputs
+     }
+
+     private void write(final FriendlyByteBuf output) {

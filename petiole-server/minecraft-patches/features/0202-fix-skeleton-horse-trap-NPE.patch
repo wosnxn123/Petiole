@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: hayanesuru <hayanesuru@outlook.jp>
+Date: Fri, 23 Jan 2026 18:47:34 +0900
+Subject: [PATCH] fix skeleton horse trap NPE
+
+Ported from Winds-Studio/Leaf ver/26.2 (0299-fix-skeleton-horse-trap-NPE.patch), GPL-3.0-only.
+Original author: hayanesuru.
+Canvas adaptation: Direct port - goal no longer removed from selector (prevents NPE when trap goal ticks after removal); doTrap flag gates canUse and stop() clears eligiblePlayers.
+
+diff --git a/net/minecraft/world/entity/animal/equine/SkeletonHorse.java b/net/minecraft/world/entity/animal/equine/SkeletonHorse.java
+index 71da9124581c7f5a7a9cdd35f9629397fba75668..3333133845f8486bfc6b11ee8620ee2a3cdcf01a 100644
+--- a/net/minecraft/world/entity/animal/equine/SkeletonHorse.java
++++ b/net/minecraft/world/entity/animal/equine/SkeletonHorse.java
+@@ -159,8 +159,10 @@ public class SkeletonHorse extends AbstractHorse {
+             this.isTrap = trap;
+             if (trap) {
+                 this.goalSelector.addGoal(1, this.skeletonTrapGoal);
++                this.skeletonTrapGoal.doTrap = true; // Canvas - fix skeleton horse trap NPE
+             } else {
+-                this.goalSelector.removeGoal(this.skeletonTrapGoal);
++                //this.goalSelector.removeGoal(this.skeletonTrapGoal); // Canvas - fix skeleton horse trap NPE
++                this.skeletonTrapGoal.doTrap = false; // Canvas - fix skeleton horse trap NPE
+             }
+         }
+     }
+
+diff --git a/net/minecraft/world/entity/animal/equine/SkeletonTrapGoal.java b/net/minecraft/world/entity/animal/equine/SkeletonTrapGoal.java
+index 686262974f067acdcd01e21dedcfababeeb72791..9dd39506926f1e7a3fa7c266883df26ab4a76316 100644
+--- a/net/minecraft/world/entity/animal/equine/SkeletonTrapGoal.java
++++ b/net/minecraft/world/entity/animal/equine/SkeletonTrapGoal.java
+@@ -18,6 +18,7 @@ import org.jspecify.annotations.Nullable;
+ 
+ public class SkeletonTrapGoal extends Goal {
+     private final SkeletonHorse horse;
++    public boolean doTrap = true; // Canvas - fix skeleton horse trap NPE
+     private java.util.List<org.bukkit.entity.HumanEntity> eligiblePlayers; // Paper
+ 
+     public SkeletonTrapGoal(final SkeletonHorse horse) {
+@@ -26,6 +27,7 @@ public class SkeletonTrapGoal extends Goal {
+ 
+     @Override
+     public boolean canUse() {
++        if (!this.doTrap) return false; // Canvas - fix skeleton horse trap NPE
+         return !(this.eligiblePlayers = this.horse.level().findNearbyBukkitPlayers(this.horse.getX(), this.horse.getY(), this.horse.getZ(), 10.0, net.minecraft.world.entity.EntitySelector.PLAYER_AFFECTS_SPAWNING)).isEmpty(); // Paper - Affects Spawning API & SkeletonHorseTrapEvent
+     }
+ 
+@@ -94,6 +96,11 @@ public class SkeletonTrapGoal extends Goal {
+         return skeleton;
+     }
+ 
++    @Override
++    public void stop() {
++        this.eligiblePlayers = null; // Canvas - fix skeleton horse trap NPE
++    }
++
+     private void enchant(final Skeleton skeleton, final EquipmentSlot slot, final DifficultyInstance difficulty) {
+         ItemStack stack = skeleton.getItemBySlot(slot);
+         stack.set(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);

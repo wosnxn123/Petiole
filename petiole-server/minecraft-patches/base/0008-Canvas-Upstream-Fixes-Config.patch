@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wosnxn123 <wosnxn123@users.noreply.github.com>
+Date: Sat, 22 Aug 2026 00:00:00 +0800
+Subject: [PATCH] Canvas Upstream Fixes config additions
+
+Mainline wiring for batch-2 ports: vanillaFixes.longCommandSupport (Lophine 0015,
+default true matching upstream), vanillaFixes.doNotCompetePOIIfUnloaded (Lophine
+0009, default false matching upstream) and vanillaFixes.mc238526 (Leaf 0039,
+default false per fork convention).
+
+diff --git a/io/canvasmc/canvas/GlobalConfiguration.java b/io/canvasmc/canvas/GlobalConfiguration.java
+index 74e36a236b9cbcdb2c385ef72aa9a681282a2c73..517b575627b2df466499c3358283980561d9dbbd 100644
+--- a/io/canvasmc/canvas/GlobalConfiguration.java
++++ b/io/canvasmc/canvas/GlobalConfiguration.java
+@@ -483,6 +483,9 @@ public class GlobalConfiguration extends Part {
+             option("mc30391").docs("Fixes chickens, blazes and withers emitting particles during landing despite falling slowly");
+             option("mc183990").docs("Fixes group AI of some mobs breaking when their target dies");
+             option("mc136249").docs("Fixes wearing enchanted boots with depth strider decreasing the strength of the riptide enchantment");
++            option("longCommandSupport").docs("Allows clients to send command packets longer than the vanilla chat limit");
++            option("doNotCompetePOIIfUnloaded").docs("Villager POI competitor scans skip job sites in unloaded chunks instead of loading them");
++            option("mc238526").docs("Fixes mob spawners counting dead entities toward their spawn potential");
+         }
+ 
+         public boolean mc261810 = false;
+@@ -502,6 +505,9 @@ public class GlobalConfiguration extends Part {
+         public boolean mc30391 = false;
+         public boolean mc183990 = false;
+         public boolean mc136249 = false;
++        public boolean longCommandSupport = true;
++        public boolean doNotCompetePOIIfUnloaded = false;
++        public boolean mc238526 = false;
+     }
+ 
+     public VanillaLikeExperience vanillaLikeExperience = new VanillaLikeExperience();

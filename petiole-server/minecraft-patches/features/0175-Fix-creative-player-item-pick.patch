@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Helvetica Volubi <suisuroru@blue-millennium.fun>
+Date: Mon, 20 Apr 2026 01:02:43 +0800
+Subject: [PATCH] Fix creative player item pick
+
+Ported from LophineLabs/Lophine master (0016-Fix-creative-player-item-pick.patch), GPL-3.0 (Lophine repository; MIT opt-in personal, not transitive).
+Original author: Helvetica Volubi.
+Canvas adaptation: none - direct port.
+
+diff --git a/net/minecraft/world/entity/item/ItemEntity.java b/net/minecraft/world/entity/item/ItemEntity.java
+index 1d78f46ebbb126bec1e2c32a7707a2d773b75e8d..a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 100644
+--- a/net/minecraft/world/entity/item/ItemEntity.java
++++ b/net/minecraft/world/entity/item/ItemEntity.java
+@@ -429,7 +429,7 @@ public class ItemEntity extends Entity implements TraceableEntity {
+             Item item = itemStack.getItem();
+             int orgCount = itemStack.getCount();
+             // CraftBukkit start - fire PlayerPickupItemEvent
+-            int canHold = player.getInventory().canHold(itemStack);
++            int canHold = player.hasInfiniteMaterials() ? orgCount : player.getInventory().canHold(itemStack); // Luminol - Fix creative item picking
+             int remaining = orgCount - canHold;
+             boolean flyAtPlayer = false; // Paper
+

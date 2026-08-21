@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <mrhua269@gmail.com>
+Date: Wed, 8 Jul 2026 21:37:19 +0800
+Subject: [PATCH] Fix teleport missing original rotation and velocity
+
+Ported from LophineLabs/Lophine master (0024-Fix-teleport-missing-original-rotation-and-velocity.patch), GPL-3.0 (Lophine repository; MIT opt-in personal, not transitive).
+Original author: MrHua269.
+Canvas adaptation: TeleportUtils hunk omitted - Canvas region threading already passes yaw/pitch there; only the ThrownEnderpearl velocity hunk is ported.
+
+diff --git a/net/minecraft/world/entity/projectile/throwableitemprojectile/ThrownEnderpearl.java b/net/minecraft/world/entity/projectile/throwableitemprojectile/ThrownEnderpearl.java
+index c681c532c803215da4d8b29d295268fae8382e5f..308a3f9f241d100f558f6deb206482d873fb26f5 100644
+--- a/net/minecraft/world/entity/projectile/throwableitemprojectile/ThrownEnderpearl.java
++++ b/net/minecraft/world/entity/projectile/throwableitemprojectile/ThrownEnderpearl.java
+@@ -161,7 +161,7 @@ public class ThrownEnderpearl extends ThrowableItemProjectile {
+                 }
+ 
+                 entity.teleportAsync(
+-                    checkWorld, to, null, null, null,
++                    checkWorld, to, null, null, entity.getDeltaMovement(), // Camellia - Fix teleport missing original rotation and velocity
+                     org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.ENDER_PEARL,
+                     // chunk could have been unloaded
+                     Entity.TELEPORT_FLAG_TELEPORT_PASSENGERS | Entity.TELEPORT_FLAG_LOAD_CHUNK,

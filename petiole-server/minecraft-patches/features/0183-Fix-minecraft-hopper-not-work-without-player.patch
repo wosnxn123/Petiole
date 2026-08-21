@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: violetc <58360096+s-yh-china@users.noreply.github.com>
+Date: Wed, 16 Aug 2023 13:10:58 +0800
+Subject: [PATCH] Fix minecraft hopper not work without player
+
+Ported from LeavesMC/Leaves master (0073-Fix-minecraft-hopper-not-work-without-player.patch), GPL-3.0-only.
+Original author: violetc.
+Canvas adaptation: fixed upstream's duplicated "// Leaves start" end-marker comment typo to "// Leaves end"; insertion point adapted to our tryConsumeItems() refactor context (behavior identical)
+
+diff --git a/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java b/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java
+index bc4625f2815824e19425798343565e15896acbbe..a8720f7ac9924b243d66d4d681eaf1e79297af1b 100644
+--- a/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java
++++ b/net/minecraft/world/entity/vehicle/minecart/MinecartHopper.java
+@@ -102,6 +102,13 @@ public class MinecartHopper extends AbstractMinecartContainer implements Hopper
+         }
+     }
+ 
++    // Leaves start - tick every
++    @Override
++    public void inactiveTick() {
++        this.tick();
++    }
++    // Leaves end - tick every
++
+     public boolean suckInItems() {
+         if (HopperBlockEntity.suckInItems(this.level(), this)) {
+             this.immunize(); // Paper

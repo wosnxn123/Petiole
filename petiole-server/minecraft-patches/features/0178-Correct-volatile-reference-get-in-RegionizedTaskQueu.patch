@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <mrhua269@gmail.com>
+Date: Fri, 17 Apr 2026 23:01:59 +0800
+Subject: [PATCH] Correct volatile reference get in RegionizedTaskQueue
+
+Ported from LophineLabs/Lophine master (0004-Correct-volatile-reference-get-in-RegionizedTaskQueu.patch), GPL-3.0 (Lophine repository; MIT opt-in personal, not transitive).
+Original author: MrHua269.
+Canvas adaptation: none - direct port.
+
+diff --git a/io/papermc/paper/threadedregions/RegionizedTaskQueue.java b/io/papermc/paper/threadedregions/RegionizedTaskQueue.java
+index 00956aa81da437a2f3e19252a86e0aeeb38f9686..c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1 100644
+--- a/io/papermc/paper/threadedregions/RegionizedTaskQueue.java
++++ b/io/papermc/paper/threadedregions/RegionizedTaskQueue.java
+@@ -533,7 +533,7 @@ public final class RegionizedTaskQueue {
+             }
+
+             private ReferenceCountData getReferenceCounterVolatile() {
+-                return (ReferenceCountData)REFERENCE_COUNTER_HANDLE.get(this);
++                return (ReferenceCountData)REFERENCE_COUNTER_HANDLE.getVolatile(this); // Luminol - Correct volatile reference get in RegionizedTaskQueue
+             }
+
+             private ReferenceCountData compareAndExchangeReferenceCounter(final ReferenceCountData expect, final ReferenceCountData update) {

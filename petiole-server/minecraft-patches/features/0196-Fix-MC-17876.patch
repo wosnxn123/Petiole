@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: HaHaWTH <102713261+HaHaWTH@users.noreply.github.com>
+Date: Tue, 9 Nov 2077 00:00:00 +0800
+Subject: [PATCH] Fix MC-17876
+
+Ported from Winds-Studio/Leaf ver/26.2 (0147-Fix-MC-17876.patch), GPL-3.0-only.
+Original author: HaHaWTH (co-authored by Bjarne Koll).
+Canvas adaptation: readExtraSaveData hunk trailing context adjusted to Folia base (deathTime line carries broadcastedDeath assignment); otherwise direct port.
+
+diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
+index 2bb1c4869a07dcbb5183ebf3f8980ac9bde9ee6e..6f326a749759586b9b7b153f049dff1cc1150150 100644
+--- a/net/minecraft/world/entity/LivingEntity.java
++++ b/net/minecraft/world/entity/LivingEntity.java
+@@ -946,7 +946,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+             this.getAttribute(Attributes.MAX_HEALTH).setBaseValue(maxHealth);
+         });
+         // CraftBukkit end
+-        this.setHealth(input.getFloatOr("Health", this.getMaxHealth()));
++        this.setHealth(input.getFloatOr("Health", this.getMaxHealth()), true); // Leaf - Fix MC-17876
+         this.hurtTime = input.getShortOr("HurtTime", (short)0);
+         this.deathTime = input.getShortOr("DeathTime", (short)0); this.broadcastedDeath = false; // Folia - region threading
+         input.getString("Team").ifPresent(teamName -> {
+@@ -1452,7 +1452,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+     }
+ 
+     // Paper start - Check for NaN
+-    public void setHealth(float health) {
++    public void setHealth(float health, final boolean bypassCap) { // Leaf - Fix MC-17876
+         if (Float.isNaN(health)) { health = getMaxHealth(); if (this.valid) {
+             System.err.println("[NAN-HEALTH] " + getScoreboardName() + " had NaN health set");
+         } } // Paper end - Check for NaN
+@@ -1462,7 +1462,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+             // Squeeze
+             if (health < 0.0F) {
+                 player.setRealHealth(0.0);
+-            } else if (health > player.getMaxHealth()) {
++            } else if (!bypassCap && health > player.getMaxHealth()) { // Leaf - Fix MC-17876
+                 player.setRealHealth(player.getMaxHealth());
+             } else {
+                 player.setRealHealth(health);
+@@ -1471,9 +1471,22 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+             return;
+         }
+         // CraftBukkit end
+-        this.entityData.set(DATA_HEALTH_ID, Mth.clamp(health, 0.0F, this.getMaxHealth()));
++        this.entityData.set(DATA_HEALTH_ID, bypassCap ? this.leaf$sanitizeHealth(health) : Mth.clamp(health, 0.0F, this.getMaxHealth())); // Leaf - Fix MC-17876
++    }
++
++    // Leaf start - Fix MC-17876
++    private float leaf$sanitizeHealth(float health) {
++        if (health < 0.0F || !Float.isFinite(health)) {
++            health = 0.0F;
++        }
++        return health;
++    }
++
++    public void setHealth(float health) {
++        this.setHealth(health, false);
+     }
++    // Leaf end - Fix MC-17876
+ 
+     public boolean isDeadOrDying() {
+         return this.getHealth() <= 0.0F || this.dead;
+     }

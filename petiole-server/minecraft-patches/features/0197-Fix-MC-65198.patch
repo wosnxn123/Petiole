@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: HaHaWTH <fsjk947@gmail.com>
+Date: Wed, 13 Mar 2024 03:33:08 +0800
+Subject: [PATCH] Fix MC-65198
+
+Ported from Winds-Studio/Leaf ver/26.2 (0148-Fix-MC-65198.patch), GPL-3.0-only.
+Original author: HaHaWTH.
+Canvas adaptation: ItemCombinerMenu hunk drops Purpur Anvil API activeQuickItem lines absent from the Canvas base.
+
+diff --git a/net/minecraft/world/inventory/ItemCombinerMenu.java b/net/minecraft/world/inventory/ItemCombinerMenu.java
+index 96bc57fbd234e7f9ae578ded1cc2eaaaf23438b9..61c1fd4cd722294550e9befea61c9308672c6ed8 100644
+--- a/net/minecraft/world/inventory/ItemCombinerMenu.java
++++ b/net/minecraft/world/inventory/ItemCombinerMenu.java
+@@ -124,6 +124,7 @@ public abstract class ItemCombinerMenu extends AbstractContainerMenu {
+         if (slot != null && slot.hasItem()) {
+             ItemStack stack = slot.getItem();
+             clicked = stack.copy();
++            ItemStack clickedCopy = clicked.copy(); // Leaf - Fix MC-65198
+             int inventorySlotStart = this.getInventorySlotStart();
+             int useRowSlotEnd = this.getUseRowEnd();
+             if (slotIndex == this.getResultSlot()) {
+@@ -160,8 +161,8 @@ public abstract class ItemCombinerMenu extends AbstractContainerMenu {
+             if (stack.getCount() == clicked.getCount()) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            slot.onTake(player, stack);
++            slot.onTake(player, clickedCopy); // Leaf - Fix MC-65198
+         }
+ 
+         return clicked;
+diff --git a/net/minecraft/world/inventory/ResultSlot.java b/net/minecraft/world/inventory/ResultSlot.java
+index 830ecd77e312d4b7935e908ae20c2915aaada2d4..0b082799e1310660bf9488e0613b85748dde4a31 100644
+--- a/net/minecraft/world/inventory/ResultSlot.java
++++ b/net/minecraft/world/inventory/ResultSlot.java
+@@ -61,7 +61,7 @@ public class ResultSlot extends Slot {
+     @Override
+     protected void checkTakeAchievements(final ItemStack carried) {
+         if (this.removeCount > 0) {
+-            carried.onCraftedBy(this.player, this.removeCount);
++            carried.onCraftedBy(this.player, carried.getCount()); // Leaf - Fix MC-65198
+         }
+ 
+         if (this.container instanceof RecipeCraftingHolder recipeCraftingHolder) {
+diff --git a/net/minecraft/world/inventory/StonecutterMenu.java b/net/minecraft/world/inventory/StonecutterMenu.java
+index 08f9ebba4a308b4592a4ae8c7ced3ec53911b918..215ce6e377c2458700da103a7b6ee3dde8141165 100644
+--- a/net/minecraft/world/inventory/StonecutterMenu.java
++++ b/net/minecraft/world/inventory/StonecutterMenu.java
+@@ -238,6 +238,7 @@ public class StonecutterMenu extends AbstractContainerMenu {
+             ItemStack stack = slot.getItem();
+             Item item = stack.getItem();
+             clicked = stack.copy();
++            ItemStack clickedCopy = clicked.copy(); // Leaf - Fix MC-65198
+             if (slotIndex == 1) {
+                 item.onCraftedBy(stack, player);
+                 if (!this.moveItemStackTo(stack, 2, 38, true)) {
+@@ -271,7 +272,7 @@ public class StonecutterMenu extends AbstractContainerMenu {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            slot.onTake(player, stack);
++            slot.onTake(player, clickedCopy); // Leaf - Fix MC-65198
+             if (slotIndex == 1) {
+                 player.drop(stack, false);
+             }

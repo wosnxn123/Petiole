@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Tue, 29 Nov 2022 15:50:22 +0100
+Subject: [PATCH] Fix 'outdated server' showing in ping before server fully boots
+
+Ported from Winds-Studio/Leaf ver/26.2 (0038-Fix-outdated-server-showing-in-ping-before-server-fu.patch), GPL-3.0-only.
+Original author: Martijn Muijsers.
+Canvas adaptation: none - direct port.
+
+diff --git a/net/minecraft/server/network/ServerStatusPacketListenerImpl.java b/net/minecraft/server/network/ServerStatusPacketListenerImpl.java
+index fc7b0b1dd054bddd830983b7f07a92169c886518..030eab2687b49346479a099b83c2072b74be53e2 100644
+--- a/net/minecraft/server/network/ServerStatusPacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerStatusPacketListenerImpl.java
+@@ -36,7 +36,8 @@ public class ServerStatusPacketListenerImpl implements ServerStatusPacketListene
+             this.connection.disconnect(DISCONNECT_REASON);
+         } else {
+             this.hasRequestedStatus = true;
+             // this.connection.send(new ClientboundStatusResponsePacket(this.status)); // Paper
++            if (net.minecraft.server.MinecraftServer.getServer().getStatus().version().isEmpty()) return; // Gale - Purpur - fix 'outdated server' showing in ping before server fully boots - do not respond to pings before we know the protocol version
+             com.destroystokyo.paper.network.StandardPaperServerListPingEventImpl.processRequest(net.minecraft.server.MinecraftServer.getServer(), this.connection); // Paper - handle status request
+         }
+     }

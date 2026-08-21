@@ -1,0 +1,59 @@
+{
+  "batch": "leafa-batch2",
+  "fork": "petiole-server (Canvas/Folia 26.2)",
+  "upstream": "Winds-Studio/Leaf ver/26.2",
+  "output_dir": "D:/1/MC/Canvas/petiole-server/minecraft-patches/features/",
+  "validation_tree": "D:/tmp/b2-check-leafa",
+  "all_validated": true,
+  "patches": [
+    {
+      "file": "0193-Fix-outdated-server-showing-in-ping-before-server-fu.patch",
+      "upstream_file": "0038-Fix-outdated-server-showing-in-ping-before-server-fu.patch",
+      "author": "Martijn Muijsers <martijnmuijsers@live.nl>",
+      "license": "GPL-3.0-only",
+      "config_keys": [],
+      "adaptation": "Direct port - hunk header rebased to Canvas baseline line numbers (@@ -36,7 +36,8 @@); early-return guard inserted before the Paper processRequest status handling.",
+      "targets": ["net/minecraft/server/network/ServerStatusPacketListenerImpl.java"]
+    },
+    {
+      "file": "0194-Fix-MC-238526.patch",
+      "upstream_file": "0039-Fix-MC-238526.patch",
+      "author": "Martijn Muijsers <martijnmuijsers@live.nl>",
+      "license": "GPL-3.0-only",
+      "config_keys": ["vanillaFixes.mc238526"],
+      "adaptation": "Config gate swapped from Gale galeConfig().gameplayMechanics.fixes.mc238526 to Canvas GlobalConfiguration.getInstance().vanillaFixes.mc238526 (new key, wired by mainline). Spawner-only exemption lets spawner water-animal spawns bypass the height check.",
+      "targets": ["net/minecraft/world/entity/animal/fish/WaterAnimal.java"]
+    },
+    {
+      "file": "0195-Fix-sprint-glitch.patch",
+      "upstream_file": "0104-Fix-sprint-glitch.patch",
+      "author": "pixelNightly <pixelnightly@proton.me>",
+      "license": "GPL-3.0-only",
+      "config_keys": [],
+      "adaptation": "Direct port - replaces CraftBukkit player.updateScaledHealth(false) with a direct DATA_HEALTH_ID sync from player.getScaledHealth() in LivingEntity.setHealth.",
+      "targets": ["net/minecraft/world/entity/LivingEntity.java"]
+    },
+    {
+      "file": "0196-Fix-MC-17876.patch",
+      "upstream_file": "0147-Fix-MC-17876.patch",
+      "author": "HaHaWTH <102713261+HaHaWTH@users.noreply.github.com>",
+      "license": "GPL-3.0-only",
+      "config_keys": [],
+      "adaptation": "readExtraSaveData hunk trailing context adjusted to Folia base (deathTime line carries broadcastedDeath assignment); setHealth gains bypassCap overload with leaf$sanitizeHealth clamping only the lower bound, applied unconditionally on NBT load.",
+      "targets": ["net/minecraft/world/entity/LivingEntity.java"]
+    },
+    {
+      "file": "0197-Fix-MC-65198.patch",
+      "upstream_file": "0148-Fix-MC-65198.patch",
+      "author": "HaHaWTH <fsjk947@gmail.com>",
+      "license": "GPL-3.0-only",
+      "config_keys": [],
+      "adaptation": "ItemCombinerMenu hunk drops Purpur Anvil API activeQuickItem lines absent from the Canvas base; clickedCopy snapshot passed to slot.onTake in ItemCombinerMenu and StonecutterMenu, ResultSlot achievements counted against carried.getCount().",
+      "targets": [
+        "net/minecraft/world/inventory/ItemCombinerMenu.java",
+        "net/minecraft/world/inventory/ResultSlot.java",
+        "net/minecraft/world/inventory/StonecutterMenu.java"
+      ]
+    }
+  ]
+}

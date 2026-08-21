@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Fortern <blueten.ki@gmail.com>
+Date: Sat, 17 May 2025 03:01:48 +0000
+Subject: [PATCH] Fix chunk reload detector
+
+Ported from LeavesMC/Leaves master (0113-Fix-chunk-reload-detector.patch), GPL-3.0-only.
+Original author: Fortern.
+Canvas adaptation: none - direct port (context line uses our broadcast.accept naming)
+
+diff --git a/net/minecraft/server/level/ServerEntity.java b/net/minecraft/server/level/ServerEntity.java
+index a126a42a2daaccb0c7dd65c4ad7ec6dce968ea24..3b205e2d5dcdd51503b7e150ce3f44077e02700d 100644
+--- a/net/minecraft/server/level/ServerEntity.java
++++ b/net/minecraft/server/level/ServerEntity.java
+@@ -416,7 +416,7 @@ public class ServerEntity {
+             if (!slots.isEmpty()) {
+                 broadcast.accept(new ClientboundSetEquipmentPacket(this.entity.getId(), slots, true)); // Paper - data sanitization
+             }
+-            ((LivingEntity) this.entity).detectEquipmentUpdates(); // CraftBukkit - SPIGOT-3789: sync again immediately after sending
++            if (this.entity.totalEntityAge == 0) ((LivingEntity) this.entity).detectEquipmentUpdates(); // CraftBukkit - SPIGOT-3789: sync again immediately after sending // Leaves - fix chunk reload detector (#492)
+         }
+ 
+         if (!this.entity.getPassengers().isEmpty()) {

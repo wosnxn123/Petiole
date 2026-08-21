@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Martijn Muijsers <martijnmuijsers@live.nl>
+Date: Tue, 29 Nov 2022 16:16:35 +0100
+Subject: [PATCH] Fix MC-238526
+
+Ported from Winds-Studio/Leaf ver/26.2 (0039-Fix-MC-238526.patch), GPL-3.0-only.
+Original author: Martijn Muijsers.
+Canvas adaptation: config gate swapped from Gale galeConfig().gameplayMechanics.fixes.mc238526 to Canvas GlobalConfiguration vanillaFixes.mc238526 (new key, wired by mainline).
+
+diff --git a/net/minecraft/world/entity/animal/fish/WaterAnimal.java b/net/minecraft/world/entity/animal/fish/WaterAnimal.java
+index 9d42eeaa1d2fcfad986a1d3ae3392bff4de5eab7..1dc49142ff9de6cccbe4414876b359ccad55ea36 100644
+--- a/net/minecraft/world/entity/animal/fish/WaterAnimal.java
++++ b/net/minecraft/world/entity/animal/fish/WaterAnimal.java
+@@ -80,8 +80,11 @@ public abstract class WaterAnimal extends PathfinderMob {
+         seaLevel = level.getMinecraftWorld().paperConfig().entities.spawning.wateranimalSpawnHeight.maximum.or(seaLevel);
+         minSpawnLevel = level.getMinecraftWorld().paperConfig().entities.spawning.wateranimalSpawnHeight.minimum.or(minSpawnLevel);
+         // Paper end - Make water animal spawn height configurable
+-        return pos.getY() >= minSpawnLevel
+-            && pos.getY() <= seaLevel
++        // Gale start - Purpur - fix MC-238526
++        boolean shouldFixMC238526 = spawnReason == EntitySpawnReason.SPAWNER && io.canvasmc.canvas.GlobalConfiguration.getInstance().vanillaFixes.mc238526;
++        boolean isAllowedHeight = pos.getY() >= minSpawnLevel && pos.getY() <= seaLevel;
++        return (shouldFixMC238526 || isAllowedHeight)
++        // Gale end - Purpur - fix MC-238526
+             && level.getFluidState(pos.below()).is(FluidTags.WATER)
+             && level.getBlockState(pos.above()).is(Blocks.WATER);
+     }

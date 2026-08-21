@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Lumine1909 <133463833+Lumine1909@users.noreply.github.com>
+Date: Sat, 29 Nov 2025 21:01:21 +0800
+Subject: [PATCH] Fix stacked container destroyed drop
+
+Ported from LeavesMC/Leaves master (0137-Fix-stacked-container-destroyed-drop.patch), GPL-3.0-only.
+Original author: Lumine1909.
+Canvas adaptation: our onContainerDestroyed takes Stream<ItemStack> instead of Iterable<ItemStack>, so contents are materialized once via toList() and the per-count loop iterates the buffered list (a Stream can only be consumed once); upstream's LeavesConfig.fix.stackedContainerDestroyedDrop gate is dropped pending config wiring - key reported for mainline enablement
+
+diff --git a/net/minecraft/world/item/ItemUtils.java b/net/minecraft/world/item/ItemUtils.java
+index cc266f88ea6d02e4bc1bb4299d83710559b0c535..8951318b060b432643c53b7a1d8cdc00087cdec9 100644
+--- a/net/minecraft/world/item/ItemUtils.java
++++ b/net/minecraft/world/item/ItemUtils.java
+@@ -42,16 +42,25 @@ public class ItemUtils {
+     }
+ 
+     public static void onContainerDestroyed(final ItemEntity container, final Stream<ItemStack> contents) {
++        // Leaves start - fix stacked container destroyed drop
++        java.util.List<ItemStack> contentList = contents.toList();
++        for (int i = 0; i < container.getItem().getCount(); i++) {
++            createDroppedItem(container, contentList);
++        }
++        // Leaves end - fix stacked container destroyed drop
++    }
++
++    private static void createDroppedItem(final ItemEntity container, final java.util.List<ItemStack> contents) {
+         Level level = container.level();
+         if (!level.isClientSide()) {
+             // Paper start - call EntityDropItemEvent
+-            contents.forEach(stack -> {
++            for (ItemStack stack : contents) {
+                 ItemEntity droppedItem = new ItemEntity(level, container.getX(), container.getY(), container.getZ(), stack);
+                 org.bukkit.event.entity.EntityDropItemEvent event = new org.bukkit.event.entity.EntityDropItemEvent(container.getBukkitEntity(), (org.bukkit.entity.Item) droppedItem.getBukkitEntity());
+                 if (event.callEvent()) {
+                     level.addFreshEntity(droppedItem);
+                 }
+-            });
++            }
+             // Paper end - call EntityDropItemEvent
+         }
+     }
