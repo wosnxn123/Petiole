@@ -29,6 +29,9 @@ jobs:
         with:
           cache-disabled: true
 
+      - name: Apply patches
+        run: ./gradlew applyAllPatches --no-configuration-cache --no-daemon
+
       - name: Locate applied sources root
         id: locate
         run: |
