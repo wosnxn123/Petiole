@@ -19,18 +19,18 @@ paperweight {
 
         patchFile {
             path = "paper-server/build.gradle.kts"
-            outputFile = file("canvas-server/build.gradle.kts")
-            patchFile = file("canvas-server/build.gradle.kts.patch")
+            outputFile = file("petiole-server/build.gradle.kts")
+            patchFile = file("petiole-server/build.gradle.kts.patch")
         }
         patchFile {
             path = "paper-api/build.gradle.kts"
-            outputFile = file("canvas-api/build.gradle.kts")
-            patchFile = file("canvas-api/build.gradle.kts.patch")
+            outputFile = file("petiole-api/build.gradle.kts")
+            patchFile = file("petiole-api/build.gradle.kts.patch")
         }
         patchDir("paperApi") {
             upstreamPath = "paper-api"
             excludes = setOf("build.gradle.kts")
-            patchesDir = file("canvas-api/paper-patches")
+            patchesDir = file("petiole-api/paper-patches")
             outputDir = file("paper-api")
         }
     }
@@ -94,14 +94,14 @@ subprojects {
     if (project.name.endsWith("-debug") || project.name.endsWith("-plugin")) {
         apply(plugin = "xyz.jpenilla.resource-factory-paper-convention")
         dependencies {
-            compileOnly(rootProject.projects.canvasServer) {
+            compileOnly(rootProject.projects.petioleServer) {
                 targetConfiguration = JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME
             }
         }
         extensions.configure<xyz.jpenilla.resourcefactory.paper.PaperPluginYaml> {
             apiVersion.set(providers.gradleProperty("apiVersion"))
             version = "SNAPSHOT-DEV"
-            authors = listOf("CanvasMC")
+            authors = listOf("Petiole")
             foliaSupported = true
         }
 
@@ -113,5 +113,5 @@ subprojects {
 
 // patching scripts
 tasks.register("fixupMinecraftFilePatches") {
-    dependsOn(":canvas-server:fixupMinecraftSourcePatches")
+    dependsOn(":petiole-server:fixupMinecraftSourcePatches")
 }

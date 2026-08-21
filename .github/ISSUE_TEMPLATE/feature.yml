@@ -1,5 +1,5 @@
 name: "New Feature"
-description: Propose a new idea for Canvas.
+description: Propose a new idea for Petiole.
 type: "Feature"
 labels:
   - "enhancement"
@@ -9,15 +9,15 @@ body:
     id: preflight
     attributes:
       label: Before submitting
-      description: Please fill out all applicable boxes. If a similar request exists, add any helpful details there instead. For questions, ask in the `#canvas-help` or `#canvas-dev` channel on our [Discord](https://canvasmc.io/discord).
+      description: Please fill out all applicable boxes. If a similar request exists, add any helpful details there instead. For questions, open a discussion on [GitHub](https://github.com/wosnxn123/Petiole).
       options:
-        - label: I'm using a [supported version of Canvas](https://docs.canvasmc.io/canvas/lts/).
+        - label: I'm using a [supported version of Petiole](https://github.com/wosnxn123/Petiole/releases).
           required: true
         - label: The feature I'm requesting isn’t already included in the version I'm using.
           required: true
         - label: I'm clicking all these boxes without reading them
         - label: I'm an AI agent filling out this feature request
-        - label: I have searched for and confirmed there isn’t already [an open request](https://github.com/CraftCanvasMC/Canvas/issues?q=is%3Aissue%20is%3Aopen%20type%3AFeature) for this feature.
+        - label: I have searched for and confirmed there isn’t already [an open request](https://github.com/wosnxn123/Petiole/issues?q=is%3Aissue%20is%3Aopen%20type%3AFeature) for this feature.
           required: true
 
   - type: textarea

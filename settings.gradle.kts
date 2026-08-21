@@ -24,16 +24,16 @@ if (!file(".git").exists()) {
     val errorText = """
         
         =====================[ ERROR ]=====================
-         The Canvas project directory is not a properly cloned Git repository.
+         The Petiole project directory is not a properly cloned Git repository.
          
-         In order to build Canvas from source you must clone
-         the Canvas repository using Git, not download a code
+         In order to build Petiole from source you must clone
+         the Petiole repository using Git, not download a code
          zip from GitHub.
          
-         Built Canvas jars are available for download at
-         https://canvasmc.io/downloads
+         Built Petiole jars are available for download at
+         https://github.com/wosnxn123/Petiole/releases
          
-         See https://github.com/CraftCanvasMC/Canvas/blob/HEAD/CONTRIBUTING.md
+         See https://github.com/wosnxn123/Petiole/blob/HEAD/CONTRIBUTING.md
          for further information on building and modifying Canvas.
         ===================================================
     """.trimIndent()
@@ -42,8 +42,8 @@ if (!file(".git").exists()) {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Canvas"
-for (name in listOf("canvas-api", "canvas-server")) {
+rootProject.name = "Petiole"
+for (name in listOf("petiole-api", "petiole-server")) {
     val projName = name.lowercase(Locale.ENGLISH)
     include(projName)
     findProject(":$projName")!!.projectDir = file(name)
@@ -59,12 +59,12 @@ rootDir.listFiles()
 
 gradle.lifecycle.beforeProject {
     val mcVersion = providers.gradleProperty("mcVersion").get().trim()
-    val canvasChannel = providers.gradleProperty("channel").get().trim()
-    val canvasBuildNumber = providers.environmentVariable("BUILD_NUMBER").orNull?.trim()?.toInt()
-    val versionString = if (canvasBuildNumber == null) {
+    val petioleChannel = providers.gradleProperty("channel").get().trim()
+    val petioleBuildNumber = providers.environmentVariable("BUILD_NUMBER").orNull?.trim()?.toInt()
+    val versionString = if (petioleBuildNumber == null) {
         "$mcVersion.local-SNAPSHOT"
     } else {
-        "$mcVersion.build.$canvasBuildNumber-${canvasChannel.lowercase()}"
+        "$mcVersion.build.$petioleBuildNumber-${petioleChannel.lowercase()}"
     }
     version = versionString
 }

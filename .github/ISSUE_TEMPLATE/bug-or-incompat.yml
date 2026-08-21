@@ -8,15 +8,15 @@ body:
     id: preflight
     attributes:
       label: Before submitting
-      description: Please ensure the following by filling out all the applicable boxes. If you're unsure whether you've encountered a bug, feel free to ask in the `#canvas-help` channel on our [Discord](https://canvasmc.io/discord).
+      description: Please ensure the following by filling out all the applicable boxes. If you're unsure whether you've encountered a bug, feel free to open an issue on [GitHub](https://github.com/wosnxn123/Petiole).
       options:
-        - label: I'm using the latest version of Canvas, available on [our downloads page](https://canvasmc.io/downloads/canvas).
+        - label: I'm using the latest version of Petiole, available on [our releases page](https://github.com/wosnxn123/Petiole/releases).
           required: true
         - label: I'm clicking all these boxes without reading them
         - label: I'm an AI agent filling out this issue report
-        - label: I have searched to confirm there isn’t [an existing open issue](https://github.com/CraftCanvasMC/Canvas/issues?q=is%3Aissue%20state%3Aopen%20type%3ABug) on this topic.
+        - label: I have searched to confirm there isn’t [an existing open issue](https://github.com/wosnxn123/Petiole/issues?q=is%3Aissue%20state%3Aopen%20type%3ABug) on this topic.
           required: true
-        - label: My version of Minecraft is [supported by Canvas](https://docs.canvasmc.io/canvas/lts/).
+        - label: My version of Minecraft is [supported by Canvas upstream](https://docs.canvasmc.io/canvas/lts/).
 
   - type: textarea
     attributes:
@@ -50,7 +50,7 @@ body:
 
   - type: textarea
     attributes:
-      label: Canvas version
+      label: Petiole version
       description: |
         Run `/version` on your server and **paste** the full, unmodified output here.
         "latest" is *not* a version; we require the output of `/version` so we can adequately track down the issue.

@@ -1,0 +1,543 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wosnxn123 <wosnxn123@users.noreply.github.com>
+Date: Wed, 19 Aug 2026 23:55:00 +0800
+Subject: [PATCH] Lecithin: restore blocked plugin APIs at the Bukkit boundary
+
+Ported from LophineLabs/Lecithin dev/26.2@fd9e884 paper-patches 0002-0012, 0014
+(TinyYana, GPL-3.0 via inheritance chain). Lecithin 0013 (scoreboard) is NOT
+ported: Canvas upstream already opens the scoreboard API with ensureMainThread
+guards - an equivalent implementation.
+
+fd9e884 (generalise the legacy sync scheduler shim to execution provenance)
+replaces the per-plugin jar-SHA rule table (old 0003) with a single question -
+"on whose behalf is this thread running" - answered by
+LecithinExecutionProvenance: region thread -> that region, global tick thread
+-> global region, startup thread -> global region, async PlayerEvent dispatch
+-> that player's EntityScheduler (PaperEventManager now establishes the owner
+for the whole dispatch and removes it in a finally), async platform events
+with no player -> global region. Bare async threads and second hops still
+fail closed. BukkitTask#cancel and scheduler cancelTask(s) now also cancel the
+redispatched task via LecithinDispatchedTasks. Economy guard keys on the Vault
+service interface instead of jar hashes.
+
+Restores at the Bukkit/CraftBukkit boundary:
+- Bukkit async scheduler semantics + diagnostic guard (0002) driven off the
+  global tick (FoliaGlobalRegionScheduler heartbeat)
+- execution-provenance sync scheduler dispatch (0003/0005/0014, fd9e884)
+- per-account economy serialization (0003); Entity#teleport at the API
+  boundary (0004); embedded PaperLib environment (0006); PaperPermissionManager
+  locking (0007)
+- riding-target dismount before teleport (0008) and mid-handover teleport
+  wait (0009, D-40), adapted to Canvas's PluginTeleportAsyncState flow
+- async task context inheritance (0010); console dispatch to global region (0011)
+- cross-region block read from resident chunk (0013)
+
+Canvas-side hardening (production incident 2026-08-18, TPA double-teleport
+killed a region tick): a PluginTeleportAsyncState left behind by a REFUSED
+teleport was never cleared, and the next teleport's guard then threw
+IllegalStateException straight through EntityScheduler.executeTick. Now:
+stale plugin states are replaced instead of throwing (foreign handoffs still
+throw), failed futures clear their own state, and the scheduled teleport
+lambda resolves the future instead of letting exceptions kill the region.
+
+All behavior gated by petiole-server.yml plugin-compat.* (default true, see
+GlobalConfiguration.PluginCompat). Canvas adaptations: contexts re-anchored
+onto Canvas's region-threading code (transfer states, ensureMainThread
+guards); config refs rewritten from Lecithin's Luminol TOML.
+
+diff --git a/src/main/java/io/papermc/paper/command/brigadier/bukkit/BukkitCommandNode.java b/src/main/java/io/papermc/paper/command/brigadier/bukkit/BukkitCommandNode.java
+index 5c52b1563d20d7e977a5bb958c18b19dec5c365a..091ac50d7512eec32ec0b0a74c640e9a0cc04062 100644
+--- a/src/main/java/io/papermc/paper/command/brigadier/bukkit/BukkitCommandNode.java
++++ b/src/main/java/io/papermc/paper/command/brigadier/bukkit/BukkitCommandNode.java
+@@ -80,6 +80,20 @@ public class BukkitCommandNode extends LiteralCommandNode<CommandSourceStack> {
+             String[] args = org.apache.commons.lang3.StringUtils.split(content, ' '); // fix adjacent spaces (from console/plugins) causing empty array elements
+ 
+             // Note: we don't return the result of target.execute as thats success / failure, we return handled (true) or not handled (false)
++            // Lecithin start - economy serialization: this is the single choke point through which
++            // every legacy (plugin.yml) Bukkit command is executed, so it is where the core can put
++            // a guarded plugin's own economy commands under the same lock as its Vault provider.
++            // See io.canvasmc.canvas.compat.LecithinEconomySerialization; no-op when the switch is off.
++            if (io.canvasmc.canvas.compat.LecithinEconomySerialization.isGuardedCommand(this.command)) {
++                io.canvasmc.canvas.compat.LecithinEconomySerialization.beginExclusive();
++                try {
++                    this.command.execute(sender, this.literal, Arrays.copyOfRange(args, 1, args.length));
++                } finally {
++                    io.canvasmc.canvas.compat.LecithinEconomySerialization.endExclusive();
++                }
++                return 1;
++            }
++            // Lecithin end - economy serialization
+             this.command.execute(sender, this.literal, Arrays.copyOfRange(args, 1, args.length));
+ 
+             // return true as command was handled
+diff --git a/src/main/java/io/papermc/paper/plugin/manager/PaperEventManager.java b/src/main/java/io/papermc/paper/plugin/manager/PaperEventManager.java
+index 937f9dec8a5264a1b4daa25a7d2b4b4f45eeb672..ca5f3d6844ceb2075ebad3d1bba5e78a266801ab 100644
+--- a/src/main/java/io/papermc/paper/plugin/manager/PaperEventManager.java
++++ b/src/main/java/io/papermc/paper/plugin/manager/PaperEventManager.java
+@@ -48,6 +48,28 @@ class PaperEventManager {
+         }
+         // Canvas - skip event if no listeners
+ 
++        // Lecithin start - execution provenance for an async event (fd9e884)
++        // An asynchronous event is dispatched on a thread that owns nothing, so a legacy
++        // scheduleSyncDelayedTask from inside one of these listeners has nowhere to go and is
++        // rejected - taking the rest of the listener down with it (measured: EssentialsX's
++        // cancel-afk-on-chat aborted chat formatting and delivery entirely). But the platform is not
++        // in the dark about whose work it is: a PlayerEvent names exactly one player, and Folia's
++        // EntityScheduler is the documented API for scheduling that player's work from any thread.
++        // Establishing that owner for the duration of the dispatch is what lets the legacy call
++        // reach it. Nothing is inferred from the plugin's runnable, the scope is removed in a
++        // finally so a pooled chat thread never carries one player's owner into the next player's
++        // message, and every event with no single player owner still fails closed.
++        final io.canvasmc.canvas.compat.LecithinExecutionProvenance.Owner lecithin$owner =
++            io.canvasmc.canvas.compat.LecithinExecutionProvenance.ownerOfAsyncEvent(event);
++        if (lecithin$owner != null) {
++            io.canvasmc.canvas.compat.LecithinExecutionProvenance.runWithScope(lecithin$owner, () -> this.dispatch(listeners, event));
++            return;
++        }
++        this.dispatch(listeners, event);
++    }
++
++    private void dispatch(RegisteredListener[] listeners, @NotNull Event event) {
++        // Lecithin end - execution provenance for an async event
+         for (RegisteredListener registration : listeners) {
+             if (!registration.getPlugin().isEnabled()) {
+                 continue;
+diff --git a/src/main/java/io/papermc/paper/plugin/manager/PaperPermissionManager.java b/src/main/java/io/papermc/paper/plugin/manager/PaperPermissionManager.java
+index 9ddbb2d72e11c6abbbdb866f3010f276efceda41..33253906cdaf6634c5b75e3e0bbbe75b0b99abe7 100644
+--- a/src/main/java/io/papermc/paper/plugin/manager/PaperPermissionManager.java
++++ b/src/main/java/io/papermc/paper/plugin/manager/PaperPermissionManager.java
+@@ -77,7 +77,21 @@ abstract class PaperPermissionManager implements PermissionManager {
+     @Override
+     @NotNull
+     public Set<Permission> getDefaultPermissions(boolean op) {
++        // Lecithin start - Folia synchronized the writers of defaultPerms() but not this reader.
++        // ImmutableSet.copyOf sizes the array first and then fills it, so a concurrent add from
++        // another thread's addPermission/recalculatePermissionDefaults aborts the copy with
++        // ArrayIndexOutOfBoundsException. That is not hypothetical: Luminol loads its config on a
++        // ForkJoin thread and registers Leaves command permissions from there while the main thread
++        // is still registering its own, and the server dies during boot roughly one start in four.
++        // Nothing but a set copy runs under the monitor, so this adds no lock-ordering edge - which
++        // is why the writers deliberately call dirtyPermissibles outside their own block.
++        if (!io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.permissionLocking) {
++            return ImmutableSet.copyOf(this.defaultPerms().get(op)); // stock body, kill switch
++        }
++        synchronized (this) {
+         return ImmutableSet.copyOf(this.defaultPerms().get(op));
++        }
++        // Lecithin end
+     }
+ 
+ 
+@@ -89,7 +103,18 @@ abstract class PaperPermissionManager implements PermissionManager {
+ 
+     @Override
+     public void removePermission(@NotNull String name) {
++        // Lecithin start - the second method Folia's synchronization sweep missed. Every other
++        // mutation of permissions() holds the monitor; this one races getPermissions()'s copy the
++        // same way getDefaultPermissions raced above. No crash observed from it yet - it is fixed
++        // because a class that is synchronized everywhere except one writer is not synchronized.
++        if (!io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.permissionLocking) {
++            this.permissions().remove(name.toLowerCase(java.util.Locale.ENGLISH)); // stock body, kill switch
++            return;
++        }
++        synchronized (this) {
+         this.permissions().remove(name.toLowerCase(java.util.Locale.ENGLISH));
++        }
++        // Lecithin end
+     }
+ 
+     @Override
+diff --git a/src/main/java/io/papermc/paper/plugin/manager/PaperPluginInstanceManager.java b/src/main/java/io/papermc/paper/plugin/manager/PaperPluginInstanceManager.java
+index 455e8c24d98fcd0ae0a349737a0e709a05ed9170..25916cc7aa078a9fe220514ace39fdf7d418da39 100644
+--- a/src/main/java/io/papermc/paper/plugin/manager/PaperPluginInstanceManager.java
++++ b/src/main/java/io/papermc/paper/plugin/manager/PaperPluginInstanceManager.java
+@@ -197,6 +197,10 @@ class PaperPluginInstanceManager {
+                 }
+             } // Paper
+ 
++            // Lecithin start - Folia-aware environment for embedded PaperLib copies
++            io.canvasmc.canvas.compat.LecithinPaperLibAdapter.install(jPlugin);
++            // Lecithin end
++
+             try {
+                 jPlugin.setEnabled(true);
+             } catch (Throwable ex) {
+@@ -260,6 +264,29 @@ class PaperPluginInstanceManager {
+         }
+ 
+         // Folia - region threading
++        // Lecithin start - restored async scheduler: cancel Bukkit tasks on disable, like Paper does
++        // Folia removed this call because CraftScheduler was fully disabled. With the async path
++        // restored (patch 0024), a disabled plugin's async timers would otherwise keep running its
++        // code forever - the exact bug this call exists to prevent on Paper.
++        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.restoreAsyncScheduler) {
++            try {
++                this.server.getScheduler().cancelTasks(plugin);
++            } catch (Throwable ex) {
++                this.handlePluginException("Error occurred (in the plugin loader) while cancelling tasks for "
++                    + pluginName + " (Is it up to date?)", ex, plugin); // Paper
++            }
++        }
++        // Lecithin end - restored async scheduler: cancel Bukkit tasks on disable, like Paper does
++
++        // Lecithin start - cancel any legacy sync tasks this plugin had redispatched onto Folia
++        // schedulers (LecithinDispatchedTasks registry, fd9e884). Same reasoning as the block above:
++        // those tasks are in none of Bukkit's queues, so without this a disabled plugin's
++        // redispatched repeating task would keep running forever.
++        try {
++            io.canvasmc.canvas.compat.LecithinDispatchedTasks.cancelAll(plugin);
++        } catch (Throwable ignored) {
++        }
++        // Lecithin end - cancel redispatched legacy sync tasks
+ 
+         // Paper start - Folia schedulers
+         try {
+diff --git a/src/main/java/io/papermc/paper/threadedregions/scheduler/FoliaGlobalRegionScheduler.java b/src/main/java/io/papermc/paper/threadedregions/scheduler/FoliaGlobalRegionScheduler.java
+index 14ffbcb66006878eacf310547dad53718f8308eb..69810b9605185c62100ff7e8d123dc31c63e2582 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/scheduler/FoliaGlobalRegionScheduler.java
++++ b/src/main/java/io/papermc/paper/threadedregions/scheduler/FoliaGlobalRegionScheduler.java
+@@ -18,6 +18,17 @@ public class FoliaGlobalRegionScheduler implements GlobalRegionScheduler {
+     private final Long2ObjectOpenHashMap<List<GlobalScheduledTask>> tasksByDeadline = new Long2ObjectOpenHashMap<>();
+ 
+     public void tick() {
++        // Lecithin start - drive the restored Bukkit async scheduler off the global tick
++        // Only the async scheduler's counter is advanced here; no plugin code runs on the
++        // global tick thread as a result.
++        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.restoreAsyncScheduler) {
++            final org.bukkit.scheduler.BukkitScheduler bukkitScheduler = org.bukkit.Bukkit.getScheduler();
++            if (bukkitScheduler instanceof org.bukkit.craftbukkit.scheduler.CraftScheduler craftScheduler) {
++                craftScheduler.lecithin$asyncHeartbeat();
++            }
++        }
++        // Lecithin end - drive the restored Bukkit async scheduler off the global tick
++
+         final List<GlobalScheduledTask> run;
+         synchronized (this.stateLock) {
+             ++this.tickCount;
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index a12174bbb3717418c405e6653bd98b9fefb37bc5..4d5376332a2c9b5f58d64f27f6dd05bdf89b4bd6 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -266,7 +266,7 @@ public final class CraftServer implements Server {
+     private final String serverVersion;
+     private final String bukkitVersion = Versioning.getBukkitVersion();
+     private final Logger logger = Logger.getLogger("Minecraft");
+-    private final ServicesManager servicesManager = new SimpleServicesManager();
++    private final ServicesManager servicesManager = new io.canvasmc.canvas.compat.LecithinServicesManager(); // Lecithin - economy serialization: wrap version-locked economy providers on register (subclass is a no-op when the kill switch is off)
+     private final CraftScheduler scheduler = new CraftScheduler();
+     private final CraftCommandMap commandMap; // Paper - Move down
+     private final SimpleHelpMap helpMap = new SimpleHelpMap(this);
+@@ -935,6 +935,12 @@ public final class CraftServer implements Server {
+         } else if (rawSender instanceof ConsoleCommandSender || rawSender instanceof net.minecraft.server.rcon.RconConsoleSource
+                 || rawSender instanceof org.bukkit.craftbukkit.command.CraftRemoteConsoleCommandSender
+                 || rawSender instanceof io.papermc.paper.commands.FeedbackForwardingSender) {
++            // Lecithin start - hand a console-sender dispatch to the region that sender belongs to
++            if (io.canvasmc.canvas.compat.LecithinCommandDispatch.shouldHandOff()) {
++                return io.canvasmc.canvas.compat.LecithinCommandDispatch.handOff(rawSender, commandLine,
++                    () -> this.dispatchCommand(rawSender, commandLine));
++            }
++            // Lecithin end
+             io.papermc.paper.threadedregions.RegionizedServer.ensureGlobalTickThread("Dispatching command async");
+         } else {
+             // huh?
+diff --git a/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java b/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java
+index 0a8d399ac437201b9077387ed0c409b26a3b66ee..82c62b37121e04fee4625256e79635b2cfb1b723 100644
+--- a/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java
++++ b/src/main/java/org/bukkit/craftbukkit/block/CraftBlock.java
+@@ -82,6 +82,15 @@ public class CraftBlock implements Block {
+     public net.minecraft.world.level.block.state.BlockState getBlockState() {
+         // Folia start - region threading
+         if (this.level instanceof ServerLevel serverWorld) {
++            // Lecithin start - serve a read-only lookup from a resident chunk instead of refusing it
++            if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThreadFor(serverWorld, this.position)) {
++                final net.minecraft.world.level.block.state.BlockState resident =
++                    io.canvasmc.canvas.compat.LecithinCrossRegionBlockRead.readIfResident(serverWorld, this.position);
++                if (resident != null) {
++                    return resident;
++                }
++            }
++            // Lecithin end
+             ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(serverWorld, this.position, "Cannot read world asynchronously");
+         }
+         // Folia end - region threading
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+index 44bb09e644c1b7aa41b2cfcd34e2f0cbc88828af..fd80f11250e832021f421f6291e05e1b0a68494e 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftEntity.java
+@@ -315,8 +315,13 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+ 
+     protected boolean teleport0(Location location, TeleportCause cause, TeleportFlag... flags) {
+         // Folia start - region threading
++        // Lecithin start - restore Paper's Entity#teleport at the API boundary; see LecithinTeleportCompat
++        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.teleportSemantics) {
++            return io.canvasmc.canvas.compat.LecithinTeleportCompat.teleport(this, location, cause, flags);
++        }
++        // Lecithin end
+         if (true) {
+-            throw new UnsupportedOperationException("Must use teleportAsync while in region threading");
++            throw new UnsupportedOperationException(io.canvasmc.canvas.compat.LecithinTeleportCompat.STOCK_MESSAGE); // Lecithin - same text, one definition
+         }
+         // Folia end - region threading
+         Entity entity = this.getHandle();
+@@ -1167,6 +1172,10 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+         // Folia start - region threading
+         final java.util.concurrent.CompletableFuture<Boolean> ret = new java.util.concurrent.CompletableFuture<>();
+         final java.util.function.Consumer<Entity> run = (Entity nmsEntity) -> {
++            // Lecithin start - Paper dismounts a riding target before teleporting it; the platform
++            // refuses outright instead. Restores that one semantic here, on the owning thread, and
++            // leaves the vehicle and any other passengers alone.
++            final Entity lecithinVehicle = io.canvasmc.canvas.compat.LecithinRidingTeleport.dismountForTeleport(nmsEntity);
+             boolean success = nmsEntity.teleportAsync(
+                 ((CraftWorld)locationClone.getWorld()).getHandle(),
+                 new net.minecraft.world.phys.Vec3(locationClone.getX(), locationClone.getY(), locationClone.getZ()),
+@@ -1176,6 +1185,10 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+                 (_) -> ret.complete(Boolean.TRUE)
+             );
+             if (!success) {
++                // Lecithin start - the refusal may be a handler cancelling the event; Paper leaves
++                // a cancelled target mounted, so put it back rather than breaking the passenger graph.
++                io.canvasmc.canvas.compat.LecithinRidingTeleport.restoreMount(nmsEntity, lecithinVehicle);
++                // Lecithin end
+                 ret.complete(Boolean.FALSE);
+             }
+         };
+@@ -1195,7 +1208,14 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+             );
+         // Canvas end - region threading
+ 
+-        if (org.bukkit.Bukkit.isOwnedByCurrentRegion(this)) {
++        // Lecithin start - D-40: a previous teleport may still be handing this entity over. It is
++        // still owned by this region (it has not moved, only changed hands), so the inline path
++        // would claim it and the platform would refuse it for having no level callback yet.
++        // Take the scheduler path the platform already has for "not ours to move right now".
++        if (org.bukkit.Bukkit.isOwnedByCurrentRegion(this) && !io.canvasmc.canvas.compat.LecithinTeleportHandover.isMidHandover(this)) {
++            // Lecithin end
++            // Lecithin start - leak guard: clear our state when the call resolves without success
++            canvas$cleanupPluginTeleportStateOnFailure(ret);
+             setPluginTransferState(transferState); // Canvas - region threading
+             run.accept(this.getHandle());
+             return ret;
+@@ -1206,8 +1226,19 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+             // Canvas start - region threading
+             (newEntity) -> {
+                 // set the transfer state first, then teleport
+-                setPluginTransferState(transferState);
+-                run.accept(newEntity);
++                // Lecithin start - production incident 2026-08-18: this lambda runs inside
++                // EntityScheduler.executeTick on the region thread. An IllegalStateException
++                // from the state guard (or a TeleportValidationException from the NMS layer)
++                // used to propagate and kill the whole region tick. Resolve the future instead;
++                // a refused teleport must fail the call, not the server.
++                canvas$cleanupPluginTeleportStateOnFailure(ret);
++                try {
++                    setPluginTransferState(transferState);
++                    run.accept(newEntity);
++                } catch (final Throwable t) {
++                    ret.completeExceptionally(t);
++                }
++                // Lecithin end - production incident 2026-08-18
+             },
+             // Canvas end - region threading
+             // retired
+@@ -1233,11 +1264,35 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
+     ) {
+         final io.canvasmc.canvas.threadedregions.entities.EntityRegionTransferState previousTransferState = getHandleRaw().getRegionTransferState();
+         if (previousTransferState != null) {
+-            throw new IllegalStateException("Cannot teleport async when another region handoff is present! Current: " + previousTransferState);
++            // Lecithin start - stale plugin teleport state hardening (production incident 2026-08-18)
++            // A plugin teleport state is only meaningful while its own call is in flight. If the NMS
++            // teleport was refused or threw after the state was set, Canvas never cleared it, and the
++            // NEXT teleport then died here with IllegalStateException - killing the whole region tick
++            // via EntityScheduler.executeTick. Replace the dead state; only foreign (non-plugin)
++            // handoffs are unrecoverable.
++            if (!(previousTransferState instanceof io.canvasmc.canvas.threadedregions.entities.EntityRegionTransferState.PluginTeleportAsyncState)) {
++                throw new IllegalStateException("Cannot teleport async when another region handoff is present! Current: " + previousTransferState);
++            }
++            getHandleRaw().clearRegionTransferState();
++            // Lecithin end - stale plugin teleport state hardening
+         }
+ 
+         getHandleRaw().setRegionTransferState(setTo);
+     }
++    // Lecithin start - leak guard for refused plugin teleports
++    private void canvas$cleanupPluginTeleportStateOnFailure(final java.util.concurrent.CompletableFuture<Boolean> future) {
++        future.whenComplete((result, error) -> {
++            if (Boolean.TRUE.equals(result)) {
++                return; // success path clears the state itself before completing TRUE
++            }
++            final io.canvasmc.canvas.threadedregions.entities.EntityRegionTransferState state =
++                getHandleRaw().getRegionTransferState();
++            if (state instanceof io.canvasmc.canvas.threadedregions.entities.EntityRegionTransferState.PluginTeleportAsyncState) {
++                getHandleRaw().clearRegionTransferState();
++            }
++        });
++    }
++    // Lecithin end - leak guard for refused plugin teleports
+     // Canvas end - region threading
+     // Paper end - more teleport API / async chunk API
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 3c725f1335f28c786c015c8ec5786c96b9e907dc..d4b787f1b0f983330e0c5dbc360fbc4a659d2018 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -1350,9 +1350,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
+     @Override
+     protected boolean teleport0(Location location, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause, io.papermc.paper.entity.TeleportFlag... flags) {
+         // Folia start - region threading
+-        if (true) {
+-            throw new UnsupportedOperationException("Must use teleportAsync while in region threading");
++        // Lecithin start - fall through to the checks below and then CraftEntity's shimmed teleport0
++        if (!io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.teleportSemantics) {
++            throw new UnsupportedOperationException(io.canvasmc.canvas.compat.LecithinTeleportCompat.STOCK_MESSAGE);
+         }
++        // Lecithin end
+         // Folia end - region threading
+         if (this.getHandle().connection == null) {
+             return false;
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncTask.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncTask.java
+index e4e2e42d0ca25df7fe9f2dd4275610e45fcb2c84..ed4d58c59c00efb7e2cf2e110251c5e85311a170 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncTask.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftAsyncTask.java
+@@ -11,6 +11,14 @@ class CraftAsyncTask extends CraftTask {
+ 
+     private final LinkedList<BukkitWorker> workers = new LinkedList<BukkitWorker>();
+     private final Map<Integer, CraftTask> runners;
++    // Lecithin start - carry the scheduling thread's execution provenance into this async task
++    // Captured here, not in run(): the field initialiser still runs on the thread that asked for
++    // the task, which is the only moment the owner is a fact rather than a guess. See
++    // io.canvasmc.canvas.compat.LecithinExecutionProvenance for why this crosses exactly one
++    // async hop and no further.
++    private final io.canvasmc.canvas.compat.LecithinExecutionProvenance.Owner lecithin$schedulingOwner =
++        io.canvasmc.canvas.compat.LecithinExecutionProvenance.captureForAsyncHandoff();
++    // Lecithin end
+ 
+     CraftAsyncTask(final Map<Integer, CraftTask> runners, final Plugin plugin, final Object task, final int id, final long delay) {
+         super(plugin, task, id, delay);
+@@ -54,7 +62,9 @@ class CraftAsyncTask extends CraftTask {
+         }
+         Throwable thrown = null;
+         try {
+-            super.run();
++            // Lecithin start - make the scheduling thread's owner visible for this body only
++            io.canvasmc.canvas.compat.LecithinExecutionProvenance.runWithScope(this.lecithin$schedulingOwner, super::run);
++            // Lecithin end
+         } catch (final Throwable t) {
+             thrown = t;
+             this.getOwner().getLogger().log(
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+index 8c6892ec60c1841cae45889da764cdd7d314d1f9..843c2a00ae70d9fde2734789ab0312791f136652 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+@@ -273,6 +273,25 @@ public class CraftScheduler implements BukkitScheduler {
+         if (task != null) {
+             task.cancel0();
+         }
++        // Lecithin start - a redispatched task is cancellable through the API the plugin used (fd9e884)
++        // A legacy sync task that LecithinCallerContextDispatch redispatched onto a Folia scheduler
++        // is in none of the maps above, so this cancel used to be a silent no-op and a repeating task
++        // ran until its plugin was disabled. The registry supplies the missing lookup; cancel0() has
++        // to happen here because it is package-private to this package.
++        final CraftTask redispatched = io.canvasmc.canvas.compat.LecithinDispatchedTasks.cancelById(taskId);
++        if (redispatched != null) {
++            redispatched.cancel0();
++        }
++        // Lecithin end - a redispatched task is cancellable through the API the plugin used
++        // Lecithin start - restored async scheduler: cancellation must not die on sync-side bookkeeping
++        // The guard task below goes through handle(), which regionised threading rejects - the caller
++        // would get an UnsupportedOperationException *after* the async-side cancel already succeeded.
++        // The sync queues can never contain plugin tasks here (sync submission always throws), so the
++        // bookkeeping is dead code under regionised threading; skip it instead of throwing.
++        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.restoreAsyncScheduler && !this.isAsyncScheduler) {
++            return;
++        }
++        // Lecithin end - restored async scheduler: cancellation must not die on sync-side bookkeeping
+         task = new CraftTask(
+                 new Runnable() {
+                     @Override
+@@ -316,6 +335,22 @@ public class CraftScheduler implements BukkitScheduler {
+             this.asyncScheduler.cancelTasks(plugin);
+         }
+         // Paper end
++        // Lecithin start - restored async scheduler: same reasoning as cancelTask(int). The async-side
++        // cancel above already did the real work; the sync-side guard task below would throw at the
++        // caller. Keep the runners sweep - it is a plain map walk with no scheduling involved.
++        if (io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.restoreAsyncScheduler && !this.isAsyncScheduler) {
++            for (final CraftTask runner : this.runners.values()) {
++                if (runner.getOwner().equals(plugin)) {
++                    runner.cancel0();
++                }
++            }
++            // Lecithin - redispatched tasks are in no runners map; see cancelTask(int) (fd9e884)
++            for (final CraftTask redispatched : io.canvasmc.canvas.compat.LecithinDispatchedTasks.cancelAll(plugin)) {
++                redispatched.cancel0();
++            }
++            return;
++        }
++        // Lecithin end - restored async scheduler: same reasoning as cancelTask(int)
+         final CraftTask task = new CraftTask(
+                 new Runnable() {
+                     @Override
+@@ -514,7 +549,40 @@ public class CraftScheduler implements BukkitScheduler {
+     }
+ 
+     protected CraftTask handle(final CraftTask task, final long delay) { // Paper
+-        if (true) throw new UnsupportedOperationException("Unsupported in region threading"); // Folia - region threading
++        // Lecithin start - restore Bukkit async scheduler semantics + diagnostic guard
++        // Folia replaced this whole method with an unconditional throw. That is correct for *sync*
++        // tasks (there is no main thread to run them on), but it also killed the *async* path,
++        // which never needed a main thread. Restoring it is a return to Paper semantics; any async
++        // task touching world state still hits Folia's thread-ownership checks, loudly.
++        if (!this.isAsyncScheduler && !task.isSync() && io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.restoreAsyncScheduler) {
++            this.asyncScheduler.handle(task, delay);
++            return task;
++        }
++        if (this.isAsyncScheduler && io.canvasmc.canvas.GlobalConfiguration.getInstance().pluginCompat.restoreAsyncScheduler) {
++            task.setNextRun(this.currentTick + delay);
++            this.addTask(task);
++            return task;
++        }
++        // Lecithin start - general legacy sync scheduler dispatch (fd9e884)
++        // Only reached for sync tasks on the main (non-async) scheduler - exactly the case stock
++        // Folia has no home for. There is no plugin list, no jar hash and no class name involved:
++        // LecithinCallerContextDispatch asks LecithinExecutionProvenance whose work this thread is
++        // doing and dispatches to the Folia scheduler that owns the answer. It returns null, and so
++        // still falls through to the throw below, whenever nothing is known - which is the
++        // fail-closed case and stays that way.
++        if (!this.isAsyncScheduler && task.isSync()) {
++            final CraftTask redispatched = io.canvasmc.canvas.compat.LecithinCallerContextDispatch.tryDispatch(task, delay, task.getPeriod());
++            if (redispatched != null) {
++                return redispatched;
++            }
++        }
++        // Lecithin end - general legacy sync scheduler dispatch
++        throw new UnsupportedOperationException(io.canvasmc.canvas.compat.LecithinSchedulerDiagnostics.reportRejected(
++            task.getOwner(), delay, task.getPeriod(), !task.isSync()));
++        // Lecithin end - restore Bukkit async scheduler semantics + diagnostic guard
++        /*
++        // Folia - region threading
++        if (true) throw new UnsupportedOperationException("Unsupported in region threading");
+         // Paper start
+         if (!this.isAsyncScheduler && !task.isSync()) {
+             this.asyncScheduler.handle(task, delay);
+@@ -524,6 +592,20 @@ public class CraftScheduler implements BukkitScheduler {
+         task.setNextRun(this.currentTick + delay);
+         this.addTask(task);
+         return task;
++        */ // Folia - region threading
++    }
++
++    /**
++     * Lecithin: advance only the async scheduler's clock.
++     * <p>{@link CraftAsyncScheduler#mainThreadHeartbeat()} increments a counter and hands the work
++     * to its own single management thread - no plugin code runs on the caller. That makes it safe
++     * to drive from Folia's global tick, which is what this exists for. Deliberately <b>not</b>
++     * {@link #mainThreadHeartbeat()}, which would also drain the sync queue.
++     */
++    public void lecithin$asyncHeartbeat() {
++        if (!this.isAsyncScheduler && this.asyncScheduler != null) {
++            this.asyncScheduler.mainThreadHeartbeat();
++        }
+     }
+ 
+     private static void validate(final Plugin plugin, final Object task) {

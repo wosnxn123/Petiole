@@ -6,9 +6,9 @@ build
 
 /run
 
-/canvas-server/build.gradle.kts
-/canvas-server/src/minecraft
-/canvas-api/build.gradle.kts
+/petiole-server/build.gradle.kts
+/petiole-server/src/minecraft
+/petiole-api/build.gradle.kts
 /folia-api
 /folia-server
 /paper-server

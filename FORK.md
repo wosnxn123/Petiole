@@ -1,6 +1,6 @@
 ## Fork 修改说明
 
-本 fork 基于 Canvas（Folia 下游），针对上游 Canvas 的两个问题进行了修改：
+本 fork（**Petiole**，2026-08-21 由 Canvas fork 独立并浅改名而来；包名与内部标识保留 `io.canvasmc.canvas`）基于上游 Canvas（Folia 下游），针对上游 Canvas 的两个问题进行了修改：
 1. 上游 Canvas **硬编码禁用命令方块**；
 2. Paper/Folia **修改了大量原版机制**（刷线机、TNT 复制、永久破坏等）。
 
@@ -18,7 +18,7 @@
 
 上游 Canvas 在多处代码中硬编码禁用了命令方块。本 fork 在 feature patch `0003-Re-enable-command-blocks` 中将 5 处禁用点改为受配置控制：
 
-- 开关：`config/canvas-server.yml` → `vanilla-like-experience.command-blocks`（默认 `true`）
+- 开关：`config/petiole-server.yml` → `vanilla-like-experience.command-blocks`（默认 `true`）
 - 开启时通过 ACE API 的 `io.canvasmc.canvas.threadedregions.commands.AbstractCommandExecution.executeOnGlobal` 将命令方块执行路由到 **global region 线程**，可安全执行跨区域命令（如 `/tp`、`/give`、`/scoreboard`）
 - 关闭时（`command-blocks: false`）保持上游 Canvas 的禁用行为
 
@@ -26,7 +26,7 @@
 
 ### 2. Vanilla-like Experience 配置（原版机制还原）
 
-主开关：`config/canvas-server.yml` → `vanilla-like-experience.enabled`（默认 `false`）。开启后还原 Paper/Folia 修改过的原版机制（移植自 LophineLabs/Lophine 0048）：
+主开关：`config/petiole-server.yml` → `vanilla-like-experience.enabled`（默认 `false`）。开启后还原 Paper/Folia 修改过的原版机制（移植自 LophineLabs/Lophine 0048）：
 
 | 机制 | 说明 |
 |------|------|
@@ -45,7 +45,7 @@
 
 ### 3. Old Feature 配置（旧版机制逐项还原）
 
-`config/canvas-server.yml` → `old-feature` 段。**独立于** `vanilla-like-experience.enabled`，逐特性单独开关，全部默认 `false`。已与 Lophine 上游 `OldFeatureConfig` 的 6 个字段完全对齐。
+`config/petiole-server.yml` → `old-feature` 段。**独立于** `vanilla-like-experience.enabled`，逐特性单独开关，全部默认 `false`。已与 Lophine 上游 `OldFeatureConfig` 的 6 个字段完全对齐。
 
 | 选项 | 说明 | 来源 / 许可证 |
 |------|------|------|
@@ -85,7 +85,7 @@ Canvas 上游内置的 `canvas:pearls` 全局 SavedData 珍珠持久化已移除
 
 移植自 [Winds-Studio/Leaf](https://github.com/Winds-Studio/Leaf) `ver/26.2@a05f8902`（Luminol 框架 + Abomination Linear V2，均 GPL-3.0-only）：区块存储格式可插拔，支持 **zstd+LZ4 压缩**，官方数据约省 50% 磁盘。
 
-- 配置：`config/canvas-server.yml` → `region-format.format-name`（默认 `MCA`）
+- 配置：`config/petiole-server.yml` → `region-format.format-name`（默认 `MCA`）
 - 可选格式：`MCA`（原版）/ `LINEAR_V2`（`.linear`，**作者自认不稳定、有丢数据风险，仅建议配合备份使用**）/ `B_LINEAR`（`.b_linear`，缓冲写，相对稳定的 Linear 变体）
 - 附带参数：`compression-level`（zstd 1-22，默认 6）、`io-thread-count`、`io-flush-delay`、`linear-use-virtual-thread`
 - **不支持混合格式**：磁盘扩展名与配置不一致会按设计延迟崩溃；已有世界换格式需外部转换器，服务器不做运行时迁移
@@ -124,9 +124,9 @@ Canvas 上游内置的 `canvas:pearls` 全局 SavedData 珍珠持久化已移除
 
 ### 补丁清单与来源
 
-**基础 patch**（`canvas-server/minecraft-patches/base/`）：Canvas 上游维护，fork 不改。数量和编号会随上游合并变化，以目录实际内容为准，此处不硬编码。
+**基础 patch**（`petiole-server/minecraft-patches/base/`）：Canvas 上游维护，fork 不改。数量和编号会随上游合并变化，以目录实际内容为准，此处不硬编码。
 
-**Feature patch**（`canvas-server/minecraft-patches/features/`）：
+**Feature patch**（`petiole-server/minecraft-patches/features/`）：
 
 | 补丁 | 来源 | 说明 |
 |------|------|------|
@@ -156,9 +156,9 @@ Canvas 上游内置的 `canvas:pearls` 全局 SavedData 珍珠持久化已移除
 2026-08-09 复核：Lophine `ver/26.2-hardfork` 推进至 `c619486d`，7 个来源补丁（0028/0034/0117/pearl/vanilla-like/0096/0101）仅有 rebase 上下文/hunk 形状变化，+/- 代码行集合与固定版本相同，无行为修复，不需重移植；pearl、vanilla-like 重编号（0130→0129、0129→0128）。`ver/26.2` 与 Leaves `master` 无变化。
 2026-08-18：合并上游 23 提交（`2499b002..a1943fae`）后 sources 补丁变化导致 feature 补丁 blob index 失效，整套 21 个补丁在干净基线（上游补丁全量应用后的 dump 树）上重新生成：0028 适配 teleport 状态重构，0129 删除 hunk 重生成，0130 补 EnderpearlItem 钩子，0065 同时吸收 Lophine 0066 vanilla hopper 重写（`movedItemCount==1` 快路径 + `removeOriginalItem` 实例比较 + 部分移动计数语义，hardfork `2459ff2e`）。全链重放逐字节验证 + Actions 全绿 + 本地启动 smoke（Done 44.7s）。同日复核：Lophine hardfork 其余 6 个来源补丁仅重编号无行为变化；Leaves 三个 GPL 来源仅变量重命名。上游同时引入 `0003-Leaf-Flush-location-while-knockback`（上游维护，与本 fork 补丁无文件冲突，已在补丁清单但归 Canvas 上游）。
 
-**Canvas 自有源码改动**（非 patch）：`canvas-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java` 新增 `VanillaLikeExperience` 配置段（`enabled`、`commandBlocks` + 11 个新机制字段 + `TripwireBehavior` 枚举，枚举位于 `GlobalConfiguration` 顶层供 NMS patch 引用）；新增 `util/UpdateSuppressionException.java`。
+**Canvas 自有源码改动**（非 patch）：`petiole-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java` 新增 `VanillaLikeExperience` 配置段（`enabled`、`commandBlocks` + 11 个新机制字段 + `TripwireBehavior` 枚举，枚举位于 `GlobalConfiguration` 顶层供 NMS patch 引用）；新增 `util/UpdateSuppressionException.java`。
 
-命令方块修复在 `0003-Re-enable-command-blocks`，vanilla-like 主机制在 `0128`，old-feature 与新增机制各自独立补丁（见上表）；配置都在 `config/canvas-server.yml`（`vanilla-like-experience` 段控原版机制与新增机制，`old-feature` 段控旧版六项）。基础 patch 保持上游 Canvas 原样（命令方块禁用），由 0003 重新启用并受配置控制。
+命令方块修复在 `0003-Re-enable-command-blocks`，vanilla-like 主机制在 `0128`，old-feature 与新增机制各自独立补丁（见上表）；配置都在 `config/petiole-server.yml`（`vanilla-like-experience` 段控原版机制与新增机制，`old-feature` 段控旧版六项）。基础 patch 保持上游 Canvas 原样（命令方块禁用），由 0003 重新启用并受配置控制。
 
 ### 上游更新须知
 
@@ -170,28 +170,28 @@ Canvas 上游内置的 `canvas:pearls` 全局 SavedData 珍珠持久化已移除
 
 ### 配置与热重载
 
-编辑 `config/canvas-server.yml`，然后执行 `/canvas reload` 或重启服务器使其生效。
+编辑 `config/petiole-server.yml`，然后执行 `/petiole reload` 或重启服务器使其生效。
 
 ### 兼容性
 
 | 服务端 | 兼容性 | 说明 |
 |--------|--------|------|
-| Canvas 26.2 | ✅ 完全兼容 | 命令方块与 vanilla-like 均可用，本 fork 的目标环境 |
-| 上游 Folia | 不适用 | 这是 Canvas fork，不是 Folia fork |
-| Paper / Purpur / Spigot | 不适用 | 这是 Canvas fork，依赖 Folia 区域化线程 |
+| Petiole 26.2 | ✅ 完全兼容 | 命令方块与 vanilla-like 均可用，本 fork 的目标环境 |
+| 上游 Folia | 不适用 | 这是 Petiole fork，不是 Folia fork |
+| Paper / Purpur / Spigot | 不适用 | 这是 Petiole fork（Canvas 下游），依赖 Folia 区域化线程 |
 
 ### 构建方式
 
 ```bash
 ./gradlew applyAllPatches
-./gradlew :canvas-server:createPaperclipJar
+./gradlew :petiole-server:createPaperclipJar
 ```
 
 **Java 版本要求**：Java 25
 
 ---
 
-![title](./canvas_title.png)
+![title](./petiole_title.png)
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)  
 [![GitHub stars](https://img.shields.io/github/stars/CraftCanvasMC/Canvas)](https://github.com/CraftCanvasMC/Canvas)  

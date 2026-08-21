@@ -1,4 +1,4 @@
-name: Build Canvas
+name: Build Petiole
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           path: |
             ~/.gradle/caches
             .gradle/caches
-            canvas-server/.gradle/caches
+            petiole-server/.gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
@@ -41,21 +41,21 @@ jobs:
         run: ./gradlew applyAllPatches --no-configuration-cache
 
       - name: Build paperclip jar
-        run: ./gradlew :canvas-server:createPaperclipJar --no-configuration-cache
+        run: ./gradlew :petiole-server:createPaperclipJar --no-configuration-cache
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: canvas-paperclip
-          path: canvas-server/build/libs/canvas-paperclip-*.jar
+          name: petiole-paperclip
+          path: petiole-server/build/libs/petiole-paperclip-*.jar
 
       - name: Create Release
         if: github.ref_name == 'main' || github.ref_name == 'pre-merger/26.2'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}-${{ github.sha }}
-          name: Canvas ${{ github.ref_name }} build
-          files: canvas-server/build/libs/canvas-paperclip-*.jar
+          name: Petiole ${{ github.ref_name }} build
+          files: petiole-server/build/libs/petiole-paperclip-*.jar
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dueris <jedimastertoothless@hotmail.com>
+Date: Mon, 28 Jul 2025 02:20:45 +0200
+Subject: [PATCH] Rebrand
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/util/VersionFetcher.java b/src/main/java/com/destroystokyo/paper/util/VersionFetcher.java
+index c70934e502fe2ae870bdafe4f3c85cefed1156a4..700407d4a629b0f6ee284d9a0301863d8cf41575 100644
+--- a/src/main/java/com/destroystokyo/paper/util/VersionFetcher.java
++++ b/src/main/java/com/destroystokyo/paper/util/VersionFetcher.java
+@@ -25,6 +25,18 @@ public interface VersionFetcher {
+      * @apiNote This method may involve a web request which will block the executing thread
+      */
+     Component getVersionMessage();
++    // Canvas start - improve version command
++
++    /**
++     * Allows overriding the full output message with a custom one set by the version fetcher
++     * implementation. If this returns null it uses the Bukkit-provided one
++     *
++     * @return the nullable full out message
++     */
++    default @org.jspecify.annotations.Nullable Component getFullOutMessage() {
++        return null;
++    }
++    // Canvas end - improve version command
+ 
+     /**
+      * Gets the version message to cache and show to command senders.
+diff --git a/src/main/java/io/papermc/paper/ServerBuildInfo.java b/src/main/java/io/papermc/paper/ServerBuildInfo.java
+index 4e099b584c3435ba1ebce492011d35ae1ac0cdf8..4e9e4e40d31a323bf31aa3cb08ba10f94ebc053c 100644
+--- a/src/main/java/io/papermc/paper/ServerBuildInfo.java
++++ b/src/main/java/io/papermc/paper/ServerBuildInfo.java
+@@ -16,6 +16,16 @@ public interface ServerBuildInfo {
+      * The brand id for Paper.
+      */
+     Key BRAND_PAPER_ID = Key.key("papermc", "paper");
++    // Canvas start - Rebrand
++    /**
++     * The brand id for Folia.
++     */
++    Key BRAND_FOLIA_ID = Key.key("papermc", "folia");
++    /**
++     * The brand id for Petiole.
++     */
++    Key BRAND_PETIOLE_ID = Key.key("petiole", "petiole");
++    // Canvas end - Rebrand
+ 
+     /**
+      * Gets the {@code ServerBuildInfo}.

@@ -34,7 +34,7 @@ non-trivial patch or direct source edit:
    the dated issue, crash report, design notes, and tests. Similarity plus weak
    evidence requires provenance clarification before merge.
 7. Confirm all required license notices ship in
-   `canvas-server/src/main/resources/META-INF/licenses/`.
+   `petiole-server/src/main/resources/META-INF/licenses/`.
 
 Missing, vague, or disputed provenance blocks merge and release even when the
 code is small, appears correct, or can be fixed later. Ask for clarification in

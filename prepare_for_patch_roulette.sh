@@ -3,8 +3,8 @@ set -euo pipefail
 
 echo "=== Moving Minecraft source patches back ==="
 
-DEST_DIR="canvas-server/minecraft-patches/sources"
-SRC_DIR="canvas-server/minecraft-patches/sources_unapplied"
+DEST_DIR="petiole-server/minecraft-patches/sources"
+SRC_DIR="petiole-server/minecraft-patches/sources_unapplied"
 
 if [[ -d "$SRC_DIR" ]]; then
   mkdir -p "$DEST_DIR"
@@ -16,7 +16,7 @@ echo "=== Applying Minecraft source patches and moving failed to rejected ==="
 
 echo "=== Disabling git file patches ==="
 
-BUILD_FILE="canvas-server/build.gradle.kts"
+BUILD_FILE="petiole-server/build.gradle.kts"
 
 if [[ ! -f "$BUILD_FILE" ]]; then
   echo "ERROR: $BUILD_FILE not found"

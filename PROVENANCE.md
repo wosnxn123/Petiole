@@ -61,7 +61,7 @@ fully applied source, not only the patch-file diff. A change with missing or
 ambiguous provenance must not be merged or released.
 
 Before release, confirm that required license notices are present in
-`canvas-server/src/main/resources/META-INF/licenses/` and that this ledger still
+`petiole-server/src/main/resources/META-INF/licenses/` and that this ledger still
 matches the shipped patch set.
 
 ## Current fork provenance ledger
@@ -74,11 +74,25 @@ upstreams. Git history is the authoritative record for the moving upstream
 baseline. Existing upstream patch authorship and source comments must be
 preserved during merges.
 
+### Fork identity: Petiole (2026-08-21)
+
+On 2026-08-21 this fork became an independent repository named
+[Petiole](https://github.com/wosnxn123/Petiole) (previously `woshnxn123/Canvas`,
+a GitHub fork of CraftCanvasMC/Canvas). The rename is shallow: Java packages
+(`io.canvasmc.canvas`), the gradle group, internal class names, and
+`canvas$`-prefixed injected members are intentionally unchanged, and every
+upstream Canvas attribution in this ledger is unaffected. Only user-facing
+identity changed: repository/jar/brand names, the `/petiole` command,
+`petiole.command.*` permission nodes, and config file names
+(`petiole-server.yml` / `petiole-worlds.yml` / `petiole-patch.yml`). Dated
+ledger entries below that mention `canvas-server.yml` or the `/canvas` command
+are historical records of the pre-rename state and are kept verbatim.
+
 ### Feature patch set (split 2026-08-07)
 
 Until 2026-08-07 the groups below shipped as a single
 `0003-Vanilla-like-experience.patch`. They now ship as per-feature patches under
-`canvas-server/minecraft-patches/features/`, numbered to match Lophine
+`petiole-server/minecraft-patches/features/`, numbered to match Lophine
 `ver/26.2-hardfork@0724ba3f` (the pinned port source): `0003` command blocks
 (original to this fork), `0128` vanilla-like config, `0094`/`0095`/`0096`/`0098`/
 `0101`/`0104` old-feature ports, and the eleven new ports recorded in the
@@ -177,7 +191,7 @@ a villager owned by a different region, or one already unloaded. It defaults to
 `false` and must stay opt-in.
 
 The related `VanillaLikeExperience` and `OldFeature` entries in
-`canvas-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java` are
+`petiole-server/src/main/java/io/canvasmc/canvas/GlobalConfiguration.java` are
 Canvas configuration adaptations for the groups above. Their relationship to
 the Lophine configuration structure is part of this provenance record and must
 not be removed during future patch rebuilds.
@@ -420,9 +434,9 @@ byte-identical to their pins (0 commits).
 
 - Repository license: [`LICENSE`](LICENSE)
 - Bundled upstream notices:
-  [`canvas-server/src/main/resources/META-INF/licenses/`](canvas-server/src/main/resources/META-INF/licenses/)
+  [`petiole-server/src/main/resources/META-INF/licenses/`](petiole-server/src/main/resources/META-INF/licenses/)
 - Lophine notice:
-  [`LICENSE_LOPHINE`](canvas-server/src/main/resources/META-INF/licenses/LICENSE_LOPHINE)
+  [`LICENSE_LOPHINE`](petiole-server/src/main/resources/META-INF/licenses/LICENSE_LOPHINE)
 
 ## Handling a provenance or license report
 

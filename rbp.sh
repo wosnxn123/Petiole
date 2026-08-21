@@ -77,15 +77,15 @@ run_gradle_task() {
 
 process_changes "./paper-server/" "PaperServer"
 process_changes "./paper-api/" "PaperApi"
-process_changes "./canvas-server/src/minecraft/java" "Minecraft"
+process_changes "./petiole-server/src/minecraft/java" "Minecraft"
 
 gradle_rebuild_task=false
 
-if $gradle_run || ! git diff --quiet "./canvas-server/build.gradle.kts" || ! git diff --cached --quiet "./canvas-server/build.gradle.kts"; then
+if $gradle_run || ! git diff --quiet "./petiole-server/build.gradle.kts" || ! git diff --cached --quiet "./petiole-server/build.gradle.kts"; then
   gradle_rebuild_task=true
 fi
 
-if $gradle_run || ! git diff --quiet "./canvas-api/build.gradle.kts" || ! git diff --cached --quiet "./canvas-api/build.gradle.kts"; then
+if $gradle_run || ! git diff --quiet "./petiole-api/build.gradle.kts" || ! git diff --cached --quiet "./petiole-api/build.gradle.kts"; then
   gradle_rebuild_task=true
 fi
 
