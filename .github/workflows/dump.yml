@@ -35,9 +35,16 @@ jobs:
       - name: Locate applied sources root
         id: locate
         run: |
-          f=$(find . -type f -path "*net/minecraft/server/MinecraftServer.java" | head -1)
-          if [ -z "$f" ]; then echo "::error::MinecraftServer.java not found"; exit 1; fi
-          root="${f%net/minecraft/server/MinecraftServer.java}"
+          root=""
+          for f in $(find . -type f -path "*net/minecraft/server/MinecraftServer.java"); do
+            d="${f%net/minecraft/server/MinecraftServer.java}"
+            if [ -f "${d}io/canvasmc/canvas/GlobalConfiguration.java" ]; then root="$d"; break; fi
+          done
+          if [ -z "$root" ]; then
+            echo "::error::no tree with both net/minecraft and io/canvasmc found; candidates:"
+            find . -type f -path "*net/minecraft/server/MinecraftServer.java"
+            exit 1
+          fi
           echo "root=$root" >> "$GITHUB_OUTPUT"
           echo "Applied sources root: $root"
           ls "$root" | head -10
