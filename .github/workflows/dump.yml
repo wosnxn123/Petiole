@@ -36,7 +36,7 @@ jobs:
         run: |
           nms=petiole-server/src/minecraft/java
           cd "$nms"
-          for p in "$GITHUB_WORKSPACE"/petiole-server/minecraft-patches/features/01[4-7]*.patch; do
+          for p in "$GITHUB_WORKSPACE"/petiole-server/minecraft-patches/features/014*.patch "$GITHUB_WORKSPACE"/petiole-server/minecraft-patches/features/015*.patch "$GITHUB_WORKSPACE"/petiole-server/minecraft-patches/features/016*.patch "$GITHUB_WORKSPACE"/petiole-server/minecraft-patches/features/017*.patch; do
             subj=$(grep -m1 "^Subject:" "$p" | sed 's/Subject: \[PATCH\] //')
             if git log --format="%s" | grep -qxF "$subj"; then
               echo "already applied: $subj"
