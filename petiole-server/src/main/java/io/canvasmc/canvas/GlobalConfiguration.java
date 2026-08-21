@@ -870,8 +870,8 @@ public class GlobalConfiguration extends Part {
 
             option("flushLocationWhileKnockback")
                 .docs("Derived from Leaf, this synchronizes the player immediately when knocked back");
+            option("premiumAccountSlowLoginTimeout").docs(Style.wrap("How many ticks a player may spend in the login sequence before being disconnected with a slow login kick; values below 1 fall back to the vanilla timeout of 600 ticks"));
         }
-
         public boolean filterVelocityPacket = false;
         public boolean filterMovePackets = false;
         public boolean alternativePlayerListTick = false;
@@ -881,6 +881,7 @@ public class GlobalConfiguration extends Part {
         // Originally from Leaf: https://github.com/Winds-Studio/Leaf/blob/58a4a9cb7994474e63ba49205cd21e89f8dacc9a/leaf-server/minecraft-patches/features/0216-Flush-location-while-knockback.patch
         // License described in Leaf-Flush-location-while-knockback.patch
         public boolean flushLocationWhileKnockback = false;
+        public int premiumAccountSlowLoginTimeout = 600;
     }
 
     {
@@ -948,8 +949,6 @@ public class GlobalConfiguration extends Part {
     }
 
     public Logs logs = new Logs();
-
-    public Networking networking = new Networking();
 
     public Optimizations optimizations = new Optimizations();
 
@@ -1037,15 +1036,6 @@ public class GlobalConfiguration extends Part {
         public boolean autosaveWeather = true;
         public boolean autosaveGamerules = true;
         public boolean autosavePlayers = true;
-    }
-
-    public static class Networking extends Part {
-
-        {
-            option("premiumAccountSlowLoginTimeout").docs(Style.wrap("How many ticks a player may spend in the login sequence before being disconnected with a slow login kick; values below 1 fall back to the vanilla timeout of 600 ticks"));
-        }
-        public int premiumAccountSlowLoginTimeout = 600;
-
     }
 
     public static class Optimizations extends Part {
