@@ -1,0 +1,35 @@
+name: Dump applied sources
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Apply patches
+        run: ./gradlew applyAllPatches --no-configuration-cache --no-daemon
+
+      - name: Pack applied sources
+        run: tar -czf applied-src.tar.gz petiole-server/src/main/java
+
+      - name: Upload applied tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: applied-src
+          path: applied-src.tar.gz
+          retention-days: 7
