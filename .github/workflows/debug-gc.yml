@@ -40,14 +40,36 @@ jobs:
       - name: Apply patches (tolerate failure)
         run: ./gradlew applyAllPatches --no-configuration-cache || true
 
-      - name: Collect GlobalConfiguration variants
+      - name: Collect GlobalConfiguration variants + workspace evidence
+        if: always()
         run: |
           mkdir -p gcdump
-          while IFS= read -r f; do
+          {
+            find . -name GlobalConfiguration.java -type f 2>/dev/null
+            find "$HOME/.gradle" -name GlobalConfiguration.java -type f 2>/dev/null
+          } | sort -u | while IFS= read -r f; do
             rel="${f#./}"
             safe=$(echo "$rel" | tr '/' '_')
             cp "$f" "gcdump/$safe"
-          done < <(find . -name GlobalConfiguration.java -type f)
+            sha256sum "$f" >> gcdump/evidence.txt
+            wc -c "$f" >> gcdump/evidence.txt
+          done
+          {
+            echo '--- git config (crlf related) ---'
+            git config --list --show-origin | grep -i -e crlf - eol || true
+            echo '--- repo status before/after apply ---'
+            git status --porcelain || true
+            echo '--- weaver workspaces (git dirs outside checkout) ---'
+            find "$HOME/.gradle" -maxdepth 6 -type d -name '.git' 2>/dev/null | while IFS= read -r g; do
+              ws=$(dirname "$g")
+              if [ -d "$ws/net/minecraft" ] || [ -f "$ws/paperweight.yml" ] || ls "$ws" >/dev/null 2>&1 && find "$ws" -maxdepth 2 -name '*.patch' 2>/dev/null | grep -q .; then
+                echo "WORKSPACE: $ws"
+                git -C "$ws" log --oneline -5 2>/dev/null || true
+                git -C "$ws" am --show-current-patch=diff > "gcdump/ws_$(echo "$ws" | tr '/' '_')_current.diff" 2>/dev/null || true
+                tar czf "gcdump/ws_$(echo "$ws" | tr '/' '_')_rebase.tgz" -C "$ws" .git/rebase-apply 2>/dev/null || true
+              fi
+            done
+          } > gcdump/context.txt 2>&1
           ls -la gcdump/
 
       - name: Upload dump
